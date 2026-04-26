@@ -93,6 +93,9 @@ pub fn hide_cm() -> bool {
 
 const VERSION_LEN: usize = 2;
 
+/// Current password encryption version
+pub const PASSWORD_ENC_VERSION: &str = "00";
+
 // Check if data is already encrypted by verifying:
 // 1) version prefix "00"
 // 2) valid base64 payload
