@@ -32,3 +32,50 @@ pub fn compress(data: &[u8]) -> Vec<u8> {
 pub fn decompress(data: &[u8]) -> Vec<u8> {
     zstd::decode_all(data).unwrap_or_default()
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_compress_decompress_roundtrip() {
+        let original = b"Hello, World! This is a test string for compression.";
+        let compressed = compress(original);
+        let decompressed = decompress(&compressed);
+        assert_eq!(original, decompressed.as_slice());
+    }
+
+    #[test]
+    fn test_compress_empty_data() {
+        let original = b"";
+        let compressed = compress(original);
+        let decompressed = decompress(&compressed);
+        assert_eq!(original, decompressed.as_slice());
+    }
+
+    #[test]
+    fn test_compress_random_data() {
+        let original: Vec<u8> = (0..=255).collect();
+        let compressed = compress(&original);
+        let decompressed = decompress(&compressed);
+        assert_eq!(original, decompressed);
+    }
+
+    #[test]
+    fn test_compress_large_data() {
+        let original = vec![0u8; 1024 * 1024]; // 1MB of zeros
+        let compressed = compress(&original);
+        // Compression should reduce size significantly for repetitive data
+        assert!(compressed.len() < original.len());
+        let decompressed = decompress(&compressed);
+        assert_eq!(original, decompressed);
+    }
+
+    #[test]
+    fn test_decompress_invalid_data() {
+        let invalid_data = b"not valid zstd data";
+        let result = decompress(invalid_data);
+        // Should return empty vec for invalid data (unwrap_or_default)
+        assert!(result.is_empty());
+    }
+}
