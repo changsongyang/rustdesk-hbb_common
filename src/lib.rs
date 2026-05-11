@@ -85,30 +85,54 @@ pub async fn sleep(sec: f32) {
 macro_rules! allow_err {
     ($e:expr) => {
         if let Err(err) = $e {
-            log::debug!(
-                "{:?}, {}:{}:{}:{}",
-                err,
+            log::warn!(
+                "Error at {}:{}:{}: {:?}",
                 module_path!(),
                 file!(),
                 line!(),
-                column!()
+                err
             );
-        } else {
         }
     };
 
     ($e:expr, $($arg:tt)*) => {
         if let Err(err) = $e {
-            log::debug!(
-                "{:?}, {}, {}:{}:{}:{}",
-                err,
-                format_args!($($arg)*),
+            log::warn!(
+                "Error at {}:{}:{}: {:?} - {}",
                 module_path!(),
                 file!(),
                 line!(),
-                column!()
+                err,
+                format_args!($($arg)*)
             );
-        } else {
+        }
+    };
+}
+
+#[macro_export]
+macro_rules! log_err {
+    ($e:expr) => {
+        if let Err(err) = $e {
+            log::error!(
+                "Error at {}:{}:{}: {:?}",
+                module_path!(),
+                file!(),
+                line!(),
+                err
+            );
+        }
+    };
+
+    ($e:expr, $($arg:tt)*) => {
+        if let Err(err) = $e {
+            log::error!(
+                "Error at {}:{}:{}: {:?} - {}",
+                module_path!(),
+                file!(),
+                line!(),
+                err,
+                format_args!($($arg)*)
+            );
         }
     };
 }
