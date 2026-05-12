@@ -17,13 +17,6 @@ use zstd::bulk::Compressor;
 /// 最大支持的压缩数据大小（100MB），防止过大的内存分配
 const MAX_COMPRESS_SIZE: usize = 100 * 1024 * 1024;
 
-/// zstd 压缩级别常量（参考文档）
-/// - 支持 1-22 级，级别越高压缩率越高但速度越慢
-/// - 默认级别为 3（由 ZSTD_CLEVEL_DEFAULT 定义）
-/// - 0 表示使用默认级别
-const _ZSTD_MIN_LEVEL: i32 = 1;
-const _ZSTD_MAX_LEVEL: i32 = 22;
-
 /// 线程局部的 zstd 压缩器
 ///
 /// 使用线程局部存储以避免每次压缩时重新初始化压缩器
@@ -144,7 +137,10 @@ pub fn decompress(data: &[u8]) -> Vec<u8> {
 
     match zstd::decode_all(data) {
         Ok(decompressed) => decompressed,
-        Err(_) => data.to_vec(),
+        Err(err) => {
+            crate::log::debug!("Failed to decompress data: {}", err);
+            data.to_vec()
+        }
     }
 }
 
