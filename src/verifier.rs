@@ -15,36 +15,36 @@ pub(crate) struct NoVerifier;
 #[cfg(debug_assertions)]
 impl ServerCertVerifier for NoVerifier {
     fn verify_server_cert(
-        &amp;self,
-        _end_entity: &amp;rustls_pki_types::CertificateDer,
-        _intermediates: &amp;[rustls_pki_types::CertificateDer],
-        _server_name: &amp;ServerName,
-        _ocsp_response: &amp;[u8],
+        &self,
+        _end_entity: &rustls_pki_types::CertificateDer,
+        _intermediates: &[rustls_pki_types::CertificateDer],
+        _server_name: &ServerName,
+        _ocsp_response: &[u8],
         _now: UnixTime,
-    ) -&gt; Result&lt;ServerCertVerified, TLSError&gt; {
+    ) -> Result<ServerCertVerified, TLSError> {
         log::warn!("⚠️ WARNING: Skipping certificate verification in debug mode!");
         Ok(ServerCertVerified::assertion())
     }
 
     fn verify_tls12_signature(
-        &amp;self,
-        _message: &amp;[u8],
-        _cert: &amp;rustls_pki_types::CertificateDer,
-        _dss: &amp;DigitallySignedStruct,
-    ) -&gt; Result&lt;HandshakeSignatureValid, TLSError&gt; {
+        &self,
+        _message: &[u8],
+        _cert: &rustls_pki_types::CertificateDer,
+        _dss: &DigitallySignedStruct,
+    ) -> Result<HandshakeSignatureValid, TLSError> {
         Ok(HandshakeSignatureValid::assertion())
     }
 
     fn verify_tls13_signature(
-        &amp;self,
-        _message: &amp;[u8],
-        _cert: &amp;rustls_pki_types::CertificateDer,
-        _dss: &amp;DigitallySignedStruct,
-    ) -&gt; Result&lt;HandshakeSignatureValid, TLSError&gt; {
+        &self,
+        _message: &[u8],
+        _cert: &rustls_pki_types::CertificateDer,
+        _dss: &DigitallySignedStruct,
+    ) -> Result<HandshakeSignatureValid, TLSError> {
         Ok(HandshakeSignatureValid::assertion())
     }
 
-    fn supported_verify_schemes(&amp;self) -&gt; Vec&lt;SignatureScheme&gt; {
+    fn supported_verify_schemes(&self) -> Vec<SignatureScheme> {
         vec![
             SignatureScheme::RSA_PKCS1_SHA1,
             SignatureScheme::ECDSA_SHA1_Legacy,
@@ -68,16 +68,16 @@ impl ServerCertVerifier for NoVerifier {
 #[cfg(any(target_os = "android", target_os = "ios"))]
 #[derive(Debug)]
 struct FallbackPlatformVerifier {
-    primary: Arc&lt;dyn ServerCertVerifier&gt;,
-    fallback: Arc&lt;dyn ServerCertVerifier&gt;,
+    primary: Arc<dyn ServerCertVerifier>,
+    fallback: Arc<dyn ServerCertVerifier>,
 }
 
 #[cfg(any(target_os = "android", target_os = "ios"))]
 impl FallbackPlatformVerifier {
     fn with_platform_fallback(
-        primary: Arc&lt;dyn ServerCertVerifier&gt;,
-        provider: Arc&lt;rustls::crypto::CryptoProvider&gt;,
-    ) -&gt; Result&lt;Self, TLSError&gt; {
+        primary: Arc<dyn ServerCertVerifier>,
+        provider: Arc<rustls::crypto::CryptoProvider>,
+    ) -> Result<Self, TLSError> {
         #[cfg(target_os = "android")]
         if !crate::config::ANDROID_RUSTLS_PLATFORM_VERIFIER_INITIALIZED
             .load(std::sync::atomic::Ordering::Relaxed)
@@ -94,13 +94,13 @@ impl FallbackPlatformVerifier {
 #[cfg(any(target_os = "android", target_os = "ios"))]
 impl ServerCertVerifier for FallbackPlatformVerifier {
     fn verify_server_cert(
-        &amp;self,
-        end_entity: &amp;rustls_pki_types::CertificateDer&lt;'_&gt;,
-        intermediates: &amp;[rustls_pki_types::CertificateDer&lt;'_&gt;],
-        server_name: &amp;ServerName&lt;'_&gt;,
-        ocsp_response: &amp;[u8],
+        &self,
+        end_entity: &rustls_pki_types::CertificateDer<'_>,
+        intermediates: &[rustls_pki_types::CertificateDer<'_>],
+        server_name: &ServerName<'_>,
+        ocsp_response: &[u8],
         now: UnixTime,
-    ) -&gt; Result&lt;ServerCertVerified, TLSError&gt; {
+    ) -> Result<ServerCertVerified, TLSError> {
         match self.primary.verify_server_cert(
             end_entity,
             intermediates,
@@ -108,8 +108,8 @@ impl ServerCertVerifier for FallbackPlatformVerifier {
             ocsp_response,
             now,
         ) {
-            Ok(verified) =&gt; Ok(verified),
-            Err(primary_err) =&gt; {
+            Ok(verified) => Ok(verified),
+            Err(primary_err) => {
                 match self.fallback.verify_server_cert(
                     end_entity,
                     intermediates,
@@ -117,8 +117,8 @@ impl ServerCertVerifier for FallbackPlatformVerifier {
                     ocsp_response,
                     now,
                 ) {
-                    Ok(verified) =&gt; Ok(verified),
-                    Err(fallback_err) =&gt; {
+                    Ok(verified) => Ok(verified),
+                    Err(fallback_err) => {
                         log::error!(
                             "Both primary and fallback verifiers failed to verify server certificate, primary error: {:?}, fallback error: {:?}",
                             primary_err,
@@ -132,31 +132,31 @@ impl ServerCertVerifier for FallbackPlatformVerifier {
     }
 
     fn verify_tls12_signature(
-        &amp;self,
-        message: &amp;[u8],
-        cert: &amp;rustls_pki_types::CertificateDer&lt;'_&gt;,
-        dss: &amp;DigitallySignedStruct,
-    ) -&gt; Result&lt;HandshakeSignatureValid, TLSError&gt; {
+        &self,
+        message: &[u8],
+        cert: &rustls_pki_types::CertificateDer<'_>,
+        dss: &DigitallySignedStruct,
+    ) -> Result<HandshakeSignatureValid, TLSError> {
         self.primary.verify_tls12_signature(message, cert, dss)
     }
 
     fn verify_tls13_signature(
-        &amp;self,
-        message: &amp;[u8],
-        cert: &amp;rustls_pki_types::CertificateDer&lt;'_&gt;,
-        dss: &amp;DigitallySignedStruct,
-    ) -&gt; Result&lt;HandshakeSignatureValid, TLSError&gt; {
+        &self,
+        message: &[u8],
+        cert: &rustls_pki_types::CertificateDer<'_>,
+        dss: &DigitallySignedStruct,
+    ) -> Result<HandshakeSignatureValid, TLSError> {
         self.primary.verify_tls13_signature(message, cert, dss)
     }
 
-    fn supported_verify_schemes(&amp;self) -&gt; Vec&lt;SignatureScheme&gt; {
+    fn supported_verify_schemes(&self) -> Vec<SignatureScheme> {
         self.primary.supported_verify_schemes()
     }
 }
 
 fn webpki_server_verifier(
-    provider: Arc&lt;rustls::crypto::CryptoProvider&gt;,
-) -&gt; ResultType&lt;Arc&lt;WebPkiServerVerifier&gt;&gt; {
+    provider: Arc<rustls::crypto::CryptoProvider>,
+) -> ResultType<Arc<WebPkiServerVerifier>> {
     let mut root_cert_store = rustls::RootCertStore::empty();
     root_cert_store.extend(webpki_roots::TLS_SERVER_ROOTS.iter().cloned());
     let rustls_native_certs::CertificateResult { certs, errors, .. } =
@@ -176,7 +176,7 @@ fn webpki_server_verifier(
     Ok(verifier)
 }
 
-pub fn client_config(danger_accept_invalid_cert: bool) -&gt; ResultType&lt;ClientConfig&gt; {
+pub fn client_config(danger_accept_invalid_cert: bool) -> ResultType<ClientConfig> {
     if danger_accept_invalid_cert {
         client_config_danger()
     } else {
@@ -184,21 +184,21 @@ pub fn client_config(danger_accept_invalid_cert: bool) -&gt; ResultType&lt;Clien
     }
 }
 
-pub fn client_config_safe() -&gt; ResultType&lt;ClientConfig&gt; {
+pub fn client_config_safe() -> ResultType<ClientConfig> {
     let config_builder = rustls::ClientConfig::builder();
     let provider = config_builder.crypto_provider().clone();
     let webpki_verifier = webpki_server_verifier(provider.clone())?;
     #[cfg(any(target_os = "android", target_os = "ios"))]
     {
         match FallbackPlatformVerifier::with_platform_fallback(webpki_verifier.clone(), provider) {
-            Ok(fallback_verifier) =&gt; {
+            Ok(fallback_verifier) => {
                 let config = config_builder
                     .dangerous()
                     .with_custom_certificate_verifier(Arc::new(fallback_verifier))
                     .with_no_client_auth();
                 Ok(config)
             }
-            Err(e) =&gt; {
+            Err(e) => {
                 log::error!(
                     "Failed to create fallback verifier: {:?}, use webpki verifier instead",
                     e
@@ -219,7 +219,7 @@ pub fn client_config_safe() -&gt; ResultType&lt;ClientConfig&gt; {
     }
 }
 
-pub fn client_config_danger() -&gt; ResultType&lt;ClientConfig&gt; {
+pub fn client_config_danger() -> ResultType<ClientConfig> {
     #[cfg(not(debug_assertions))]
     {
         log::error!("⚠️ ERROR: client_config_danger() called in production! Certificate verification cannot be disabled.");
