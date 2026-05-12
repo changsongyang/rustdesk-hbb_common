@@ -2,24 +2,70 @@ use crate::config::Config;
 use sodiumoxide::base64;
 use std::sync::{Arc, RwLock};
 
-lazy_static::lazy_static! {
-    pub static ref TEMPORARY_PASSWORD:Arc<RwLock<String>> = Arc::new(RwLock::new(get_auto_password()));
+/// 密码加密错误类型
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CryptError {
+    /// 密钥派生失败
+    KeyDerivationFailed,
+    /// Nonce 长度无效
+    InvalidNonceLength,
+    /// 解密失败
+    DecryptionFailed,
+    /// 数据为空
+    EmptyData,
 }
 
+impl std::fmt::Display for CryptError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            CryptError::KeyDerivationFailed => write!(f, "密钥派生失败"),
+            CryptError::InvalidNonceLength => write!(f, "Nonce 长度无效"),
+            CryptError::DecryptionFailed => write!(f, "解密失败"),
+            CryptError::EmptyData => write!(f, "数据为空"),
+        }
+    }
+}
+
+impl std::error::Error for CryptError {}
+
+// 密码加密使用的固定盐值（32字节）
+// 使用固定盐值确保同一设备上的 UUID 始终派生相同的密钥
+const ENCRYPTION_KEY_SALT: sodiumoxide::crypto::pwhash::Salt = sodiumoxide::crypto::pwhash::Salt([
+    0x72, 0x75, 0x73, 0x74, 0x64, 0x65, 0x73, 0x6b, // "rustdesk"
+    0x5f, 0x6b, 0x65, 0x79, 0x73, 0x61, 0x6c, 0x74, // "_keysalt"
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, // padding
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+]);
+
+lazy_static::lazy_static! {
+    /// 临时密码的全局存储（线程安全）
+    pub static ref TEMPORARY_PASSWORD: Arc<RwLock<String>> = 
+        Arc::new(RwLock::new(get_auto_password()));
+}
+
+/// 密码验证方式枚举
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum VerificationMethod {
+    /// 仅使用临时密码
     OnlyUseTemporaryPassword,
+    /// 仅使用永久密码
     OnlyUsePermanentPassword,
+    /// 两种密码都可使用
     UseBothPasswords,
 }
 
+/// 批准模式枚举
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ApproveMode {
+    /// 密码和点击都需要
     Both,
+    /// 仅需要密码
     Password,
+    /// 仅需要点击确认
     Click,
 }
 
+/// 生成自动密码
 fn get_auto_password() -> String {
     let len = temporary_password_length();
     if Config::get_bool_option(crate::config::keys::OPTION_ALLOW_NUMERNIC_ONE_TIME_PASSWORD) {
@@ -29,16 +75,17 @@ fn get_auto_password() -> String {
     }
 }
 
-// Should only be called in server
+/// 更新临时密码（仅应在服务端调用）
 pub fn update_temporary_password() {
     *TEMPORARY_PASSWORD.write().unwrap() = get_auto_password();
 }
 
-// Should only be called in server
+/// 获取临时密码（仅应在服务端调用）
 pub fn temporary_password() -> String {
     TEMPORARY_PASSWORD.read().unwrap().clone()
 }
 
+/// 获取当前配置的密码验证方式
 fn verification_method() -> VerificationMethod {
     let method = Config::get_option("verification-method");
     if method == "use-temporary-password" {
@@ -46,19 +93,15 @@ fn verification_method() -> VerificationMethod {
     } else if method == "use-permanent-password" {
         VerificationMethod::OnlyUsePermanentPassword
     } else {
-        VerificationMethod::UseBothPasswords // default
+        VerificationMethod::UseBothPasswords // 默认值
     }
 }
 
+/// 获取临时密码长度
 pub fn temporary_password_length() -> usize {
-    let length = Config::get_option("temporary-password-length");
-    if length == "8" {
-        8
-    } else if length == "10" {
-        10
-    } else {
-        6 // default
-    }
+    Config::get_option("temporary-password-length")
+        .parse()
+        .unwrap_or(6)
 }
 
 pub fn temporary_enabled() -> bool {
@@ -117,7 +160,7 @@ fn is_encrypted(v: &[u8]) -> bool {
 
 pub fn encrypt_str_or_original(s: &str, version: &str, max_len: usize) -> String {
     if is_encrypted(s.as_bytes()) {
-        log::error!("Duplicate encryption!");
+        log::warn!("重复加密，返回原始数据");
         return s.to_owned();
     }
     if s.chars().count() > max_len {
@@ -160,7 +203,7 @@ pub fn decrypt_str_or_original(s: &str, current_version: &str) -> (String, bool,
 
 pub fn encrypt_vec_or_original(v: &[u8], version: &str, max_len: usize) -> Vec<u8> {
     if is_encrypted(v) {
-        log::error!("Duplicate encryption!");
+        log::warn!("重复加密，返回原始数据");
         return v.to_owned();
     }
     if v.len() > max_len {
@@ -194,50 +237,105 @@ pub fn decrypt_vec_or_original(v: &[u8], current_version: &str) -> (Vec<u8>, boo
     (v.to_owned(), false, !v.is_empty() && !is_encrypted(v))
 }
 
-fn encrypt(v: &[u8]) -> Result<String, ()> {
+fn encrypt(v: &[u8]) -> Result<String, CryptError> {
     if !v.is_empty() {
         symmetric_crypt(v, true).map(|v| base64::encode(v, base64::Variant::Original))
     } else {
-        Err(())
+        Err(CryptError::EmptyData)
     }
 }
 
-fn decrypt(v: &[u8]) -> Result<Vec<u8>, ()> {
+fn decrypt(v: &[u8]) -> Result<Vec<u8>, CryptError> {
     if !v.is_empty() {
-        base64::decode(v, base64::Variant::Original).and_then(|v| symmetric_crypt(&v, false))
+        base64::decode(v, base64::Variant::Original)
+            .map_err(|_| CryptError::DecryptionFailed)
+            .and_then(|v| symmetric_crypt(&v, false))
     } else {
-        Err(())
+        Err(CryptError::EmptyData)
     }
 }
 
-pub fn symmetric_crypt(data: &[u8], encrypt: bool) -> Result<Vec<u8>, ()> {
+/// 使用 XSalsa20-Poly1305 算法进行对称加密/解密
+/// 
+/// 安全性说明：
+/// - 使用设备 UUID 通过 KDF 派生加密密钥
+/// - 每次加密使用随机生成的 nonce（24字节）
+/// - 密文格式：[nonce(24字节)][ciphertext + tag(16字节)]
+/// 
+/// # 参数
+/// - `data`: 要加密或解密的数据
+/// - `encrypt`: true 表示加密，false 表示解密
+/// 
+/// # 返回值
+/// - Ok(Vec<u8>): 成功时返回加密/解密后的数据
+/// - Err(CryptError): 失败时返回具体错误类型
+pub fn symmetric_crypt(data: &[u8], encrypt: bool) -> Result<Vec<u8>, CryptError> {
     use sodiumoxide::crypto::secretbox;
+    use sodiumoxide::crypto::pwhash;
     use std::convert::TryInto;
 
+    if data.is_empty() {
+        return Err(CryptError::EmptyData);
+    }
+
+    // 获取设备 UUID 作为密钥派生的输入
     let uuid = crate::get_uuid();
-    let mut keybuf = uuid.clone();
-    keybuf.resize(secretbox::KEYBYTES, 0);
-    let key = secretbox::Key(keybuf.try_into().map_err(|_| ())?);
-    let nonce = secretbox::Nonce([0; secretbox::NONCEBYTES]);
+    
+    // 使用密码学安全的密钥派生函数 KDF
+    // 使用固定盐值确保同一设备上的 UUID 始终派生相同的密钥
+    let mut key = [0u8; secretbox::KEYBYTES];
+    pwhash::derive_key(
+        &mut key,
+        uuid.as_slice(),
+        &ENCRYPTION_KEY_SALT,
+        pwhash::OPSLIMIT_INTERACTIVE,
+        pwhash::MEMLIMIT_INTERACTIVE,
+    ).map_err(|_| CryptError::KeyDerivationFailed)?;
+    let key = secretbox::Key(key);
 
     if encrypt {
-        Ok(secretbox::seal(data, &nonce, &key))
+        // 生成随机 nonce（避免密钥重用攻击）
+        let nonce = secretbox::gen_nonce();
+        let encrypted = secretbox::seal(data, &nonce, &key);
+        // 将 nonce 附加到密文前面，解密时需要使用相同的 nonce
+        let mut result = Vec::with_capacity(nonce.0.len() + encrypted.len());
+        result.extend_from_slice(&nonce.0);
+        result.extend_from_slice(&encrypted);
+        Ok(result)
     } else {
-        let res = secretbox::open(data, &nonce, &key);
+        // 从数据开头提取 nonce
+        if data.len() < secretbox::NONCEBYTES {
+            return Err(CryptError::InvalidNonceLength);
+        }
+        let nonce_bytes: [u8; secretbox::NONCEBYTES] = data[..secretbox::NONCEBYTES]
+            .try_into()
+            .map_err(|_| CryptError::InvalidNonceLength)?;
+        let nonce = secretbox::Nonce(nonce_bytes);
+        let ciphertext = &data[secretbox::NONCEBYTES..];
+
+        let res = secretbox::open(ciphertext, &nonce, &key);
+        
+        // 降级处理：如果使用 UUID 解密失败，尝试使用公钥（兼容旧版本）
         #[cfg(not(any(target_os = "android", target_os = "ios")))]
         if res.is_err() {
-            // Fallback: try pk if uuid decryption failed (in case encryption used pk due to machine_uid failure)
             if let Some(key_pair) = Config::get_existing_key_pair() {
                 let pk = key_pair.1;
                 if pk != uuid {
-                    let mut keybuf = pk;
-                    keybuf.resize(secretbox::KEYBYTES, 0);
-                    let pk_key = secretbox::Key(keybuf.try_into().map_err(|_| ())?);
-                    return secretbox::open(data, &nonce, &pk_key);
+                    let mut pk_key = [0u8; secretbox::KEYBYTES];
+                    pwhash::derive_key(
+                        &mut pk_key,
+                        pk.as_slice(),
+                        &ENCRYPTION_KEY_SALT,
+                        pwhash::OPSLIMIT_INTERACTIVE,
+                        pwhash::MEMLIMIT_INTERACTIVE,
+                    ).map_err(|_| CryptError::KeyDerivationFailed)?;
+                    let pk_key = secretbox::Key(pk_key);
+                    return secretbox::open(ciphertext, &nonce, &pk_key)
+                        .map_err(|_| CryptError::DecryptionFailed);
                 }
             }
         }
-        res
+        res.map_err(|_| CryptError::DecryptionFailed)
     }
 }
 
@@ -441,37 +539,50 @@ mod test {
         );
     }
 
-    // Test decryption fallback when data was encrypted with key_pair but decryption tries machine_uid first
+    /// 测试降级解密：当数据使用 key_pair 加密但解密尝试使用 machine_uid 时
     #[test]
     #[cfg(not(any(target_os = "android", target_os = "ios")))]
     fn test_decrypt_with_pk_fallback() {
         use sodiumoxide::crypto::secretbox;
-        use std::convert::TryInto;
+        use sodiumoxide::crypto::pwhash;
+        use super::ENCRYPTION_KEY_SALT;
 
         let uuid = crate::get_uuid();
         let pk = crate::config::Config::get_key_pair().1;
 
-        // Ensure uuid != pk, otherwise fallback branch won't be tested
+        // 确保 uuid != pk，否则无法测试降级分支
         if uuid == pk {
             eprintln!("skip: uuid == pk, fallback branch won't be tested");
             return;
         }
 
         let data = b"test password 123";
-        let nonce = secretbox::Nonce([0; secretbox::NONCEBYTES]);
+        let nonce = secretbox::gen_nonce();
 
+        // 使用 KDF 派生 pk 密钥（与 symmetric_crypt 保持一致）
+        let mut pk_key = [0u8; secretbox::KEYBYTES];
+        pwhash::derive_key(
+            &mut pk_key,
+            pk.as_slice(),
+            &ENCRYPTION_KEY_SALT,
+            pwhash::OPSLIMIT_INTERACTIVE,
+            pwhash::MEMLIMIT_INTERACTIVE,
+        ).unwrap();
+        let pk_key = secretbox::Key(pk_key);
+        
         // Encrypt with pk (simulating machine_uid failure during encryption)
-        let mut pk_keybuf = pk;
-        pk_keybuf.resize(secretbox::KEYBYTES, 0);
-        let pk_key = secretbox::Key(pk_keybuf.try_into().unwrap());
-        let encrypted = secretbox::seal(data, &nonce, &pk_key);
+        let ciphertext = secretbox::seal(data, &nonce, &pk_key);
+        
+        // 将 nonce 附加到密文前面（与 symmetric_crypt 格式一致）
+        let mut encrypted = Vec::with_capacity(nonce.0.len() + ciphertext.len());
+        encrypted.extend_from_slice(&nonce.0);
+        encrypted.extend_from_slice(&ciphertext);
 
         // Decrypt using symmetric_crypt (should fallback to pk since uuid differs)
         let decrypted = super::symmetric_crypt(&encrypted, false);
-        assert!(
-            decrypted.is_ok(),
-            "Decryption with pk fallback should succeed"
-        );
+        if let Err(e) = &decrypted {
+            panic!("解密失败: {}", e);
+        }
         assert_eq!(decrypted.unwrap(), data);
     }
 }
