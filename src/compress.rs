@@ -17,11 +17,14 @@ use zstd::bulk::Compressor;
 /// 最大支持的压缩数据大小（100MB），防止过大的内存分配
 const MAX_COMPRESS_SIZE: usize = 100 * 1024 * 1024;
 
-/// 线程局部的 zstd 压缩器
-///
-/// 使用线程局部存储以避免每次压缩时重新初始化压缩器
-/// 压缩器状态：RefCell 用于内部可变性，io::Result 用于处理初始化失败
+/// 小数据阈值（64字节），小于此值直接使用一次性压缩避免线程局部开销
+const SMALL_DATA_THRESHOLD: usize = 64;
+
 thread_local! {
+    /// 线程局部的 zstd 压缩器
+    ///
+    /// 使用线程局部存储以避免每次压缩时重新初始化压缩器
+    /// 压缩器状态：RefCell 用于内部可变性，io::Result 用于处理初始化失败
     static COMPRESSOR: RefCell<io::Result<Compressor<'static>>> = RefCell::new(Compressor::new(crate::config::COMPRESS_LEVEL));
 }
 
@@ -38,6 +41,7 @@ thread_local! {
 /// - 自动容错：压缩失败时返回原始数据
 /// - 自动恢复：压缩器失败时会自动重新初始化
 /// - 备用方案：线程局部压缩器不可用时使用一次性压缩
+/// - 小数据优化：小数据直接使用一次性压缩避免线程局部开销
 ///
 /// # 示例
 /// ```
@@ -58,8 +62,18 @@ pub fn compress(data: &[u8]) -> Vec<u8> {
         return data.to_vec();
     }
 
-    let mut result = data.to_vec();
+    if data.len() <= SMALL_DATA_THRESHOLD {
+        return match zstd::bulk::compress(data, crate::config::COMPRESS_LEVEL) {
+            Ok(res) => res,
+            Err(err) => {
+                crate::log::debug!("Small data compression failed: {}", err);
+                data.to_vec()
+            }
+        };
+    }
+
     let mut used_thread_local = false;
+    let mut compressed_result = None;
 
     COMPRESSOR.with(|compressor_cell| {
         match compressor_cell.try_borrow_mut() {
@@ -73,7 +87,7 @@ pub fn compress(data: &[u8]) -> Vec<u8> {
                     Ok(compressor) => {
                         match compressor.compress(data) {
                             Ok(compressed) => {
-                                result = compressed;
+                                compressed_result = Some(compressed);
                                 used_thread_local = true;
                             }
                             Err(err) => {
@@ -86,22 +100,26 @@ pub fn compress(data: &[u8]) -> Vec<u8> {
                     }
                 }
             }
-            Err(_) => {
-                crate::log::debug!("zstd compressor is already borrowed, will try one-time compression");
+            Err(std::cell::BorrowMutError { .. }) => {
+                crate::log::debug!("zstd compressor is already borrowed (possible reentrancy), will try one-time compression");
             }
         }
     });
 
+    if let Some(result) = compressed_result {
+        return result;
+    }
+
     if !used_thread_local {
         match zstd::bulk::compress(data, crate::config::COMPRESS_LEVEL) {
-            Ok(res) => result = res,
+            Ok(res) => return res,
             Err(err) => {
                 crate::log::debug!("One-time compression also failed: {}", err);
             }
         }
     }
 
-    result
+    data.to_vec()
 }
 
 /// 解压缩 zstd 压缩的数据
@@ -148,44 +166,38 @@ pub fn decompress(data: &[u8]) -> Vec<u8> {
 mod tests {
     use super::*;
 
+    fn assert_roundtrip(data: &[u8]) {
+        let compressed = compress(data);
+        let decompressed = decompress(&compressed);
+        assert_eq!(data, decompressed.as_slice());
+    }
+
     #[test]
     fn test_compress_decompress_roundtrip() {
-        let original = b"Hello, World! This is a comprehensive test string for zstd compression and decompression.";
-        let compressed = compress(original);
-        let decompressed = decompress(&compressed);
-        assert_eq!(original, decompressed.as_slice());
+        assert_roundtrip(b"Hello, World! This is a comprehensive test string for zstd compression and decompression.");
     }
 
     #[test]
     fn test_compress_empty_data() {
-        let original = b"";
-        let compressed = compress(original);
-        let decompressed = decompress(&compressed);
-        assert_eq!(original, decompressed.as_slice());
+        assert_roundtrip(b"");
     }
 
     #[test]
     fn test_compress_random_data() {
         let original: Vec<u8> = (0..=255).collect();
-        let compressed = compress(&original);
-        let decompressed = decompress(&compressed);
-        assert_eq!(original, decompressed);
+        assert_roundtrip(&original);
     }
 
     #[test]
     fn test_compress_large_data() {
         let original = vec![0u8; 1024 * 1024];
-        let compressed = compress(&original);
-        let decompressed = decompress(&compressed);
-        assert_eq!(original, decompressed);
+        assert_roundtrip(&original);
     }
 
     #[test]
     fn test_compress_large_random_data() {
         let original: Vec<u8> = (0..100000).map(|i| (i % 256) as u8).collect();
-        let compressed = compress(&original);
-        let decompressed = decompress(&compressed);
-        assert_eq!(original, decompressed);
+        assert_roundtrip(&original);
     }
 
     #[test]
@@ -219,35 +231,25 @@ mod tests {
     fn test_multiple_compress_decompress_calls() {
         let original = b"Testing multiple consecutive compression and decompression operations";
         
-        for i in 0..20 {
-            let compressed = compress(original);
-            let decompressed = decompress(&compressed);
-            assert_eq!(original, decompressed.as_slice(), "Failed at iteration {}", i);
+        for _i in 0..20 {
+            assert_roundtrip(original);
         }
     }
 
     #[test]
     fn test_single_byte() {
-        let original = &[42u8];
-        let compressed = compress(original);
-        let decompressed = decompress(&compressed);
-        assert_eq!(original, decompressed.as_slice());
+        assert_roundtrip(&[42u8]);
     }
 
     #[test]
     fn test_single_byte_max() {
-        let original = &[0xFFu8];
-        let compressed = compress(original);
-        let decompressed = decompress(&compressed);
-        assert_eq!(original, decompressed.as_slice());
+        assert_roundtrip(&[0xFFu8]);
     }
 
     #[test]
     fn test_repeating_pattern() {
         let original = b"RustDesk".repeat(5000);
-        let compressed = compress(&original);
-        let decompressed = decompress(&compressed);
-        assert_eq!(original, decompressed);
+        assert_roundtrip(&original);
     }
 
     #[test]
@@ -259,35 +261,27 @@ mod tests {
     #[test]
     fn test_unicode_data() {
         let original = "你好，世界！こんにちは！Hello!".as_bytes();
-        let compressed = compress(original);
-        let decompressed = decompress(&compressed);
-        assert_eq!(original, decompressed.as_slice());
+        assert_roundtrip(original);
     }
 
     #[test]
     fn test_binary_data() {
-        let original: Vec<u8> = (0..1000).map(|i| (i * 17) % 256).collect();
-        let compressed = compress(&original);
-        let decompressed = decompress(&compressed);
-        assert_eq!(original, decompressed);
+        let original: Vec<u8> = (0..1000).map(|i| ((i * 17) % 256) as u8).collect();
+        assert_roundtrip(&original);
     }
 
     #[test]
     fn test_various_sizes() {
         for size in [1, 10, 100, 1000, 10000, 100000] {
             let original: Vec<u8> = (0..size).map(|i| (i % 256) as u8).collect();
-            let compressed = compress(&original);
-            let decompressed = decompress(&compressed);
-            assert_eq!(original, decompressed, "Failed for size {}", size);
+            assert_roundtrip(&original);
         }
     }
 
     #[test]
     fn test_very_small_compression() {
         let small_data = b"xyz";
-        let compressed = compress(small_data);
-        let decompressed = decompress(&compressed);
-        assert_eq!(small_data, decompressed.as_slice());
+        assert_roundtrip(small_data);
     }
 
     #[test]
@@ -295,8 +289,15 @@ mod tests {
         use rand::Rng;
         let mut rng = rand::thread_rng();
         let original: Vec<u8> = (0..5000).map(|_| rng.gen()).collect();
-        let compressed = compress(&original);
-        let decompressed = decompress(&compressed);
-        assert_eq!(original, decompressed);
+        assert_roundtrip(&original);
+    }
+
+    #[test]
+    fn test_small_data_threshold() {
+        let original_64: Vec<u8> = (0..64).map(|i| i as u8).collect();
+        assert_roundtrip(&original_64);
+        
+        let original_65: Vec<u8> = (0..65).map(|i| i as u8).collect();
+        assert_roundtrip(&original_65);
     }
 }
