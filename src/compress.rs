@@ -10,14 +10,18 @@ thread_local! {
 }
 
 pub fn compress(data: &[u8]) -> Vec<u8> {
+    let mut used_thread_local = false;
     let mut out = Vec::new();
     COMPRESSOR.with(|c| {
         if let Ok(mut c) = c.try_borrow_mut() {
             match &mut *c {
                 Ok(c) => match c.compress(data) {
-                    Ok(res) => out = res,
+                    Ok(res) => {
+                        out = res;
+                        used_thread_local = true;
+                    },
                     Err(err) => {
-                        crate::log::debug!("Failed to compress: {}", err);
+                        crate::log::debug!("Failed to compress with thread-local: {}", err);
                     }
                 },
                 Err(err) => {
@@ -26,6 +30,11 @@ pub fn compress(data: &[u8]) -> Vec<u8> {
             }
         }
     });
+    if !used_thread_local {
+        if let Ok(res) = zstd::bulk::compress(data, crate::config::COMPRESS_LEVEL) {
+            out = res;
+        }
+    }
     out
 }
 
