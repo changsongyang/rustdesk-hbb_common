@@ -1,15 +1,6 @@
 //! zstd 压缩和解压缩模块
 //!
 //! 提供高性能的 zstd 压缩和解压缩功能，具有自动容错和线程安全。
-//!
-//! # 示例
-//!
-//! ```ignore
-//! let data = b"Hello, World!";
-//! let compressed = compress(data);
-//! let decompressed = decompress(&compressed);
-//! assert_eq!(data, decompressed.as_slice());
-//! ```
 
 use std::{cell::RefCell, io};
 use zstd::bulk::Compressor;
@@ -42,12 +33,6 @@ thread_local! {
 /// - 自动恢复：压缩器失败时会自动重新初始化
 /// - 备用方案：线程局部压缩器不可用时使用一次性压缩
 /// - 小数据优化：小数据直接使用一次性压缩避免线程局部开销
-///
-/// # 示例
-/// ```ignore
-/// let data = b"Test data for compression";
-/// let compressed = compress(data);
-/// ```
 pub fn compress(data: &[u8]) -> Vec<u8> {
     if data.is_empty() {
         return Vec::new();
@@ -133,12 +118,6 @@ pub fn compress(data: &[u8]) -> Vec<u8> {
 /// # 特性
 /// - 容错设计：能处理无效或损坏的 zstd 数据
 /// - 空数据安全：对空输入返回空
-///
-/// # 示例
-/// ```ignore
-/// let compressed = compress(b"Test data");
-/// let decompressed = decompress(&compressed);
-/// ```
 pub fn decompress(data: &[u8]) -> Vec<u8> {
     if data.is_empty() {
         return Vec::new();
