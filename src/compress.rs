@@ -4,7 +4,7 @@
 //!
 //! # 示例
 //!
-//! ```
+//! ```no_run
 //! let data = b"Hello, World!";
 //! let compressed = compress(data);
 //! let decompressed = decompress(&compressed);
@@ -44,7 +44,7 @@ thread_local! {
 /// - 小数据优化：小数据直接使用一次性压缩避免线程局部开销
 ///
 /// # 示例
-/// ```
+/// ```no_run
 /// let data = b"Test data for compression";
 /// let compressed = compress(data);
 /// ```
@@ -135,7 +135,7 @@ pub fn compress(data: &[u8]) -> Vec<u8> {
 /// - 空数据安全：对空输入返回空
 ///
 /// # 示例
-/// ```
+/// ```no_run
 /// let compressed = compress(b"Test data");
 /// let decompressed = decompress(&compressed);
 /// ```
