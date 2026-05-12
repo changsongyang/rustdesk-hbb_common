@@ -1,4 +1,5 @@
 use crate::ResultType;
+use crate::bail;
 use rustls_pki_types::{ServerName, UnixTime};
 use std::sync::Arc;
 use tokio_rustls::rustls::{self, client::WebPkiServerVerifier, ClientConfig};
