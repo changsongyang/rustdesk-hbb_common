@@ -17,7 +17,7 @@ protobuf = { version = "3.7", features = ["with-bytes"] }
 tokio = { version = "1.44", features = ["full"] }
 tokio-util = { version = "0.7", features = ["full"] }
 futures = "0.3"
-bytes = { version = "1.10", features = ["serde"] }
+bytes = { version = "1.11", features = ["serde"] }
 log = "0.4"
 env_logger = "0.11"
 socket2 = { version = "0.3", features = ["reuseport"] }
