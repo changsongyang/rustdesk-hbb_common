@@ -2976,6 +2976,14 @@ pub mod keys {
     // Server-side: keep host system awake during incoming sessions (Security setting)
     pub const OPTION_KEEP_AWAKE_DURING_INCOMING_SESSIONS: &str =
         "keep-awake-during-incoming-sessions";
+    
+    // Security enhancement options
+    pub const OPTION_ENABLE_CREDENTIAL_CLEANUP: &str = "enable-credential-cleanup";
+    pub const OPTION_CREDENTIAL_EXPIRY_DAYS: &str = "credential-expiry-days";
+    pub const OPTION_ENABLE_LOGIN_ALERTS: &str = "enable-login-alerts";
+    pub const OPTION_ALERT_WEBHOOK_URL: &str = "alert-webhook-url";
+    pub const OPTION_ENABLE_PERFORMANCE_MONITORING: &str = "enable-performance-monitoring";
+    pub const OPTION_MAX_LOGIN_FAILURES_BEFORE_ALERT: &str = "max-login-failures-before-alert";
 
     // Client-side: keep client system awake during outgoing sessions (General setting)
     pub const OPTION_KEEP_AWAKE_DURING_OUTGOING_SESSIONS: &str =
