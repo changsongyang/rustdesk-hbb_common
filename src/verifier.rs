@@ -1,4 +1,4 @@
-use crate::{bail, ResultType};
+use crate::ResultType;
 use rustls_pki_types::{ServerName, UnixTime};
 use std::sync::Arc;
 use tokio_rustls::rustls::{self, client::WebPkiServerVerifier, ClientConfig};
@@ -223,7 +223,7 @@ pub fn client_config_danger() -> ResultType<ClientConfig> {
     #[cfg(not(debug_assertions))]
     {
         log::error!("⚠️ ERROR: client_config_danger() called in production! Certificate verification cannot be disabled.");
-        bail!("Insecure certificate verification is not allowed in production builds")
+        Err(crate::anyhow::anyhow!("Insecure certificate verification is not allowed in production builds"))
     }
     
     #[cfg(debug_assertions)]

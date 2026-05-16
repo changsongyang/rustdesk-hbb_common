@@ -88,8 +88,9 @@ pub fn record_login_attempt(peer_id: String, ip: String, success: bool, failure_
     };
     records.push(record);
     
-    if records.len() > MAX_LOGIN_RECORDS {
-        records.drain(0..records.len() - MAX_LOGIN_RECORDS);
+    let len = records.len();
+    if len > MAX_LOGIN_RECORDS {
+        records.drain(0..len - MAX_LOGIN_RECORDS);
     }
     
     if !success && is_login_alerts_enabled() {
@@ -202,8 +203,9 @@ pub fn start_performance_monitoring(connection_id: String) -> String {
     
     let mut metrics_store = PERFORMANCE_METRICS.lock().unwrap();
     
-    if metrics_store.len() >= MAX_PERFORMANCE_RECORDS {
-        metrics_store.drain(0..metrics_store.len() - MAX_PERFORMANCE_RECORDS + 1);
+    let len = metrics_store.len();
+    if len >= MAX_PERFORMANCE_RECORDS {
+        metrics_store.drain(0..len - MAX_PERFORMANCE_RECORDS + 1);
     }
     
     metrics_store.push(metrics);

@@ -28,8 +28,21 @@ impl std::fmt::Display for CryptError {
 
 impl std::error::Error for CryptError {}
 
-// 密码加密使用的固定盐值（32字节）
-// 使用固定盐值确保同一设备上的 UUID 始终派生相同的密钥
+/// 密码加密使用的固定盐值（32字节）
+/// 
+/// 安全设计说明：
+/// 1. 使用固定盐值是**有意为之**，目的是确保同一设备（相同 UUID）始终派生相同的密钥
+/// 2. 这允许跨会话保持加密数据的可解密性，无需存储额外的盐值
+/// 3. 安全性依赖于：
+///    - UUID 的保密性（设备唯一且不公开）
+///    - 高强度的 Argon2id KDF 算法
+///    - 足够的计算复杂度（OPSLIMIT_INTERACTIVE, MEMLIMIT_INTERACTIVE）
+/// 4. 如果 UUID 泄露，固定盐值确实会降低暴力破解难度，但由于使用了 Argon2id，
+///    攻击者仍需付出巨大的计算代价
+/// 
+/// 兼容性说明：
+/// - 修改此盐值将导致现有加密数据无法解密
+/// - 如需升级，应实现版本化密钥派生机制
 const ENCRYPTION_KEY_SALT: sodiumoxide::crypto::pwhash::Salt = sodiumoxide::crypto::pwhash::Salt([
     0x72, 0x75, 0x73, 0x74, 0x64, 0x65, 0x73, 0x6b, // "rustdesk"
     0x5f, 0x6b, 0x65, 0x79, 0x73, 0x61, 0x6c, 0x74, // "_keysalt"

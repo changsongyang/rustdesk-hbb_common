@@ -38,7 +38,7 @@ impl Drop for RAIIHandle {
 }
 
 #[repr(transparent)]
-pub(self) struct RAIIPDHQuery(pub PDH_HQUERY);
+struct RAIIPDHQuery(pub PDH_HQUERY);
 
 impl Drop for RAIIPDHQuery {
     fn drop(&mut self) {
@@ -58,7 +58,7 @@ pub fn start_cpu_performance_monitor() {
         // load avg or cpu usage, test with prime95.
         // Prefer cpu usage because we can get accurate value from Precess Explorer.
         // const COUNTER_PATH: &'static str = "\\System\\Processor Queue Length\0";
-        const COUNTER_PATH: &'static str = "\\Processor(_total)\\% Processor Time\0";
+        const COUNTER_PATH: &str = "\\Processor(_total)\\% Processor Time\0";
         const SAMPLE_INTERVAL: DWORD = 2; // 2 second
 
         let mut ret;
@@ -105,7 +105,7 @@ pub fn start_cpu_performance_monitor() {
                 recent_valid.pop_front();
             }
             // allow get value within one minute
-            if queue.len() > 0 && recent_valid.iter().filter(|v| **v).count() > queue.len() / 2 {
+            if !queue.is_empty() && recent_valid.iter().filter(|v| **v).count() > queue.len() / 2 {
                 let sum: f64 = queue.iter().map(|f| f.to_owned()).sum();
                 let avg = sum / (queue.len() as f64);
                 *CPU_USAGE_ONE_MINUTE.lock().unwrap() = Some((avg, Instant::now()));
@@ -127,7 +127,7 @@ pub fn start_cpu_performance_monitor() {
                 recent_valid.push_back(false);
                 continue;
             }
-            queue.push_back(counter_value.u.doubleValue().clone());
+            queue.push_back(*counter_value.u.doubleValue());
             recent_valid.push_back(true);
         }
     };
@@ -139,7 +139,7 @@ pub fn start_cpu_performance_monitor() {
 }
 
 pub fn cpu_uage_one_minute() -> Option<f64> {
-    let v = CPU_USAGE_ONE_MINUTE.lock().unwrap().clone();
+    let v = *CPU_USAGE_ONE_MINUTE.lock().unwrap();
     if let Some((v, instant)) = v {
         if instant.elapsed().as_secs() < 30 {
             return Some(v);
@@ -149,10 +149,7 @@ pub fn cpu_uage_one_minute() -> Option<f64> {
 }
 
 pub fn sync_cpu_usage(cpu_usage: Option<f64>) {
-    let v = match cpu_usage {
-        Some(cpu_usage) => Some((cpu_usage, Instant::now())),
-        None => None,
-    };
+    let v = cpu_usage.map(|cpu_usage| (cpu_usage, Instant::now()));
     *CPU_USAGE_ONE_MINUTE.lock().unwrap() = v;
     log::info!("cpu usage synced: {:?}", cpu_usage);
 }
