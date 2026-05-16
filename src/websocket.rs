@@ -99,7 +99,7 @@ impl WsFramedStream {
         let disable_nagle = false;
         let request = url
             .into_client_request()
-            .map_err(|e| Error::other(e))?;
+            .map_err(Error::other)?;
         let connector =
             Self::get_connector(&tls_type, danger_accept_invalid_cert.unwrap_or(false))?;
         match timeout(
