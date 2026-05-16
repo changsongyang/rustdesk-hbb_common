@@ -6,6 +6,7 @@ use std::net::SocketAddr;
 use tokio::net::TcpStream;
 
 // support Websocket and tcp.
+#[allow(clippy::large_enum_variant)]
 pub enum Stream {
     #[cfg(feature = "webrtc")]
     WebRTC(webrtc::WebRTCStream),

@@ -487,7 +487,7 @@ impl Proxy {
             self.ms_timeout,
             self.https_connect_nativetls(
                 stream,
-                &target_addr,
+                target_addr,
                 danger_accept_invalid_cert.unwrap_or(false),
             ),
         )
@@ -520,6 +520,7 @@ impl Proxy {
         self.http_connect(stream, target_addr).await
     }
 
+    #[allow(clippy::too_many_arguments)]
     #[async_recursion]
     async fn https_connect_rustls_wrap_danger<'a>(
         &self,
@@ -545,7 +546,7 @@ impl Proxy {
         {
             Ok(s) => {
                 upsert_tls_cache(
-                    &url,
+                    url,
                     TlsType::Rustls,
                     danger_accept_invalid_cert.unwrap_or(false),
                 );
@@ -569,6 +570,7 @@ impl Proxy {
                     log::warn!(
                         "Falling back to rustls-tls (accept invalid cert) for HTTPS proxy server."
                     );
+                    #[allow(clippy::needless_borrow)]
                     self.https_connect_rustls_wrap_danger(
                         &url,
                         local,
@@ -583,10 +585,10 @@ impl Proxy {
                 } else if !is_tls_type_cached {
                     log::warn!("Falling back to native-tls for HTTPS proxy server.");
                     self.https_connect_nativetls_wrap_danger(
-                        &url,
+                        url,
                         local,
                         proxy,
-                        &target_addr,
+                        target_addr,
                         origin_danger_accept_invalid_cert,
                     )
                     .await?
@@ -700,7 +702,7 @@ where
     let response_bytes = response_string.into_bytes();
     response.parse(&response_bytes)?;
 
-    return match response.code {
+    match response.code {
         Some(code) => {
             if code == 200 {
                 Ok(())
@@ -709,5 +711,5 @@ where
             }
         }
         None => Err(ProxyError::NoHttpCode),
-    };
+    }
 }

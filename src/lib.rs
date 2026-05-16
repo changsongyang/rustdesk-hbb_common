@@ -213,7 +213,7 @@ impl AddrMangle {
         let mut padded = [0u8; 16];
         padded[..bytes.len()].copy_from_slice(bytes);
         let number = u128::from_le_bytes(padded);
-        let tm = (number >> 17) & (u32::max_value() as u128);
+        let tm = (number >> 17) & (u32::MAX as u128);
         let ip = (((number >> 49) - tm) as u32).to_le_bytes();
         let port = (number & 0xFFFFFF) - (tm & 0xFFFF);
         SocketAddr::V4(SocketAddrV4::new(
@@ -253,7 +253,7 @@ pub fn gen_version() {
     println!("cargo:rerun-if-changed=Cargo.toml");
     use std::io::prelude::*;
     let mut file = File::create("./src/version.rs").unwrap();
-    for line in read_lines("Cargo.toml").unwrap().flatten() {
+    for line in read_lines("Cargo.toml").unwrap().map_while(Result::ok) {
         let ab: Vec<&str> = line.split('=').map(|x| x.trim()).collect();
         if ab.len() == 2 && ab[0] == "version" {
             file.write_all(format!("pub const VERSION: &str = {};\n", ab[1]).as_bytes())

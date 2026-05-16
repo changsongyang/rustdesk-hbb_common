@@ -14,7 +14,7 @@ use async_recursion::async_recursion;
 use bytes::{Bytes, BytesMut};
 use futures::{SinkExt, StreamExt};
 use std::{
-    io::{Error, ErrorKind},
+    io::Error,
     net::SocketAddr,
     sync::Arc,
     time::Duration,
@@ -74,7 +74,7 @@ impl WsFramedStream {
         let tls_type = get_cached_tls_type(url);
         let is_tls_type_cached = tls_type.is_some();
         let tls_type = tls_type.unwrap_or(TlsType::Rustls);
-        let danger_accept_invalid_cert = get_cached_tls_accept_invalid_cert(&url);
+        let danger_accept_invalid_cert = get_cached_tls_accept_invalid_cert(url);
         Self::try_connect(
             url,
             ms_timeout,
@@ -99,7 +99,7 @@ impl WsFramedStream {
         let disable_nagle = false;
         let request = url
             .into_client_request()
-            .map_err(|e| Error::new(ErrorKind::Other, e))?;
+            .map_err(|e| Error::other(e))?;
         let connector =
             Self::get_connector(&tls_type, danger_accept_invalid_cert.unwrap_or(false))?;
         match timeout(
@@ -185,7 +185,7 @@ impl WsFramedStream {
             MaybeTlsStream::Plain(tcp) => tcp.peer_addr()?,
             MaybeTlsStream::NativeTls(tls) => tls.get_ref().get_ref().get_ref().peer_addr()?,
             MaybeTlsStream::Rustls(tls) => tls.get_ref().0.peer_addr()?,
-            _ => return Err(Error::new(ErrorKind::Other, "Unsupported stream type").into()),
+            _ => return Err(Error::other("Unsupported stream type").into()),
         };
 
         let ws = Self {
@@ -272,8 +272,7 @@ impl WsFramedStream {
                 Ok(msg) => msg,
                 Err(e) => {
                     log::error!("{}", e);
-                    return Some(Err(Error::new(
-                        ErrorKind::Other,
+                    return Some(Err(Error::other(
                         format!("WebSocket protocol error: {}", e),
                     )));
                 }
@@ -307,10 +306,7 @@ impl WsFramedStream {
 
     #[inline]
     pub async fn next_timeout(&mut self, ms: u64) -> Option<Result<BytesMut, Error>> {
-        match timeout(Duration::from_millis(ms), self.next()).await {
-            Ok(res) => res,
-            Err(_) => None,
-        }
+        timeout(Duration::from_millis(ms), self.next()).await.unwrap_or_default()
     }
 }
 
