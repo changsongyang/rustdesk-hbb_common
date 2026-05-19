@@ -920,7 +920,8 @@ impl TransferJob {
 
     pub async fn read(&mut self) -> ResultType<Option<FileTransferBlock>> {
         if self.r#type == JobType::Generic
-            && self.enable_overwrite_detection && !self.file_confirmed()
+            && self.enable_overwrite_detection
+            && !self.file_confirmed()
         {
             return Ok(None);
         }

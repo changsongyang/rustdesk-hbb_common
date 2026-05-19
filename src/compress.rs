@@ -209,7 +209,7 @@ mod tests {
     #[test]
     fn test_multiple_compress_decompress_calls() {
         let original = b"Testing multiple consecutive compression and decompression operations";
-        
+
         for _i in 0..20 {
             assert_roundtrip(original);
         }
@@ -275,7 +275,7 @@ mod tests {
     fn test_small_data_threshold() {
         let original_64: Vec<u8> = (0..64).map(|i| i as u8).collect();
         assert_roundtrip(&original_64);
-        
+
         let original_65: Vec<u8> = (0..65).map(|i| i as u8).collect();
         assert_roundtrip(&original_65);
     }

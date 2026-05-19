@@ -1,8 +1,8 @@
 /// Creates a vector with aligned memory allocation.
- ///
- /// # Safety
- ///
- /// The returned Vec must not be resized or reserved.
+///
+/// # Safety
+///
+/// The returned Vec must not be resized or reserved.
 pub unsafe fn aligned_u8_vec(cap: usize, align: usize) -> Vec<u8> {
     use std::alloc::*;
 

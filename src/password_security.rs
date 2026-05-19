@@ -29,7 +29,7 @@ impl std::fmt::Display for CryptError {
 impl std::error::Error for CryptError {}
 
 /// 密码加密使用的固定盐值（32字节）
-/// 
+///
 /// 安全设计说明：
 /// 1. 使用固定盐值是**有意为之**，目的是确保同一设备（相同 UUID）始终派生相同的密钥
 /// 2. 这允许跨会话保持加密数据的可解密性，无需存储额外的盐值
@@ -39,7 +39,7 @@ impl std::error::Error for CryptError {}
 ///    - 足够的计算复杂度（OPSLIMIT_INTERACTIVE, MEMLIMIT_INTERACTIVE）
 /// 4. 如果 UUID 泄露，固定盐值确实会降低暴力破解难度，但由于使用了 Argon2id，
 ///    攻击者仍需付出巨大的计算代价
-/// 
+///
 /// 兼容性说明：
 /// - 修改此盐值将导致现有加密数据无法解密
 /// - 如需升级，应实现版本化密钥派生机制
@@ -52,7 +52,7 @@ const ENCRYPTION_KEY_SALT: sodiumoxide::crypto::pwhash::Salt = sodiumoxide::cryp
 
 lazy_static::lazy_static! {
     /// 临时密码的全局存储（线程安全）
-    pub static ref TEMPORARY_PASSWORD: Arc<RwLock<String>> = 
+    pub static ref TEMPORARY_PASSWORD: Arc<RwLock<String>> =
         Arc::new(RwLock::new(get_auto_password()));
 }
 
@@ -267,22 +267,22 @@ fn decrypt(v: &[u8]) -> Result<Vec<u8>, CryptError> {
 }
 
 /// 使用 XSalsa20-Poly1305 算法进行对称加密/解密
-/// 
+///
 /// 安全性说明：
 /// - 使用设备 UUID 通过 KDF 派生加密密钥
 /// - 每次加密使用随机生成的 nonce（24字节）
 /// - 密文格式：[nonce(24字节)][ciphertext + tag(16字节)]
-/// 
+///
 /// # 参数
 /// - `data`: 要加密或解密的数据
 /// - `encrypt`: true 表示加密，false 表示解密
-/// 
+///
 /// # 返回值
 /// - Ok(Vec<u8>): 成功时返回加密/解密后的数据
 /// - Err(CryptError): 失败时返回具体错误类型
 pub fn symmetric_crypt(data: &[u8], encrypt: bool) -> Result<Vec<u8>, CryptError> {
-    use sodiumoxide::crypto::secretbox;
     use sodiumoxide::crypto::pwhash;
+    use sodiumoxide::crypto::secretbox;
     use std::convert::TryInto;
 
     if data.is_empty() {
@@ -291,7 +291,7 @@ pub fn symmetric_crypt(data: &[u8], encrypt: bool) -> Result<Vec<u8>, CryptError
 
     // 获取设备 UUID 作为密钥派生的输入
     let uuid = crate::get_uuid();
-    
+
     // 使用密码学安全的密钥派生函数 KDF
     // 使用固定盐值确保同一设备上的 UUID 始终派生相同的密钥
     let mut key = [0u8; secretbox::KEYBYTES];
@@ -301,7 +301,8 @@ pub fn symmetric_crypt(data: &[u8], encrypt: bool) -> Result<Vec<u8>, CryptError
         &ENCRYPTION_KEY_SALT,
         pwhash::OPSLIMIT_INTERACTIVE,
         pwhash::MEMLIMIT_INTERACTIVE,
-    ).map_err(|_| CryptError::KeyDerivationFailed)?;
+    )
+    .map_err(|_| CryptError::KeyDerivationFailed)?;
     let key = secretbox::Key(key);
 
     if encrypt {
@@ -325,7 +326,7 @@ pub fn symmetric_crypt(data: &[u8], encrypt: bool) -> Result<Vec<u8>, CryptError
         let ciphertext = &data[secretbox::NONCEBYTES..];
 
         let res = secretbox::open(ciphertext, &nonce, &key);
-        
+
         // 降级处理：如果使用 UUID 解密失败，尝试使用公钥（兼容旧版本）
         #[cfg(not(any(target_os = "android", target_os = "ios")))]
         if res.is_err() {
@@ -339,7 +340,8 @@ pub fn symmetric_crypt(data: &[u8], encrypt: bool) -> Result<Vec<u8>, CryptError
                         &ENCRYPTION_KEY_SALT,
                         pwhash::OPSLIMIT_INTERACTIVE,
                         pwhash::MEMLIMIT_INTERACTIVE,
-                    ).map_err(|_| CryptError::KeyDerivationFailed)?;
+                    )
+                    .map_err(|_| CryptError::KeyDerivationFailed)?;
                     let pk_key = secretbox::Key(pk_key);
                     return secretbox::open(ciphertext, &nonce, &pk_key)
                         .map_err(|_| CryptError::DecryptionFailed);
@@ -554,9 +556,9 @@ mod test {
     #[test]
     #[cfg(not(any(target_os = "android", target_os = "ios")))]
     fn test_decrypt_with_pk_fallback() {
-        use sodiumoxide::crypto::secretbox;
-        use sodiumoxide::crypto::pwhash;
         use super::ENCRYPTION_KEY_SALT;
+        use sodiumoxide::crypto::pwhash;
+        use sodiumoxide::crypto::secretbox;
 
         let uuid = crate::get_uuid();
         let pk = crate::config::Config::get_key_pair().1;
@@ -578,12 +580,13 @@ mod test {
             &ENCRYPTION_KEY_SALT,
             pwhash::OPSLIMIT_INTERACTIVE,
             pwhash::MEMLIMIT_INTERACTIVE,
-        ).unwrap();
+        )
+        .unwrap();
         let pk_key = secretbox::Key(pk_key);
-        
+
         // Encrypt with pk (simulating machine_uid failure during encryption)
         let ciphertext = secretbox::seal(data, &nonce, &pk_key);
-        
+
         // 将 nonce 附加到密文前面（与 symmetric_crypt 格式一致）
         let mut encrypted = Vec::with_capacity(nonce.0.len() + ciphertext.len());
         encrypted.extend_from_slice(&nonce.0);

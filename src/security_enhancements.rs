@@ -34,11 +34,11 @@ pub struct PerformanceMetrics {
 
 lazy_static::lazy_static! {
     static ref LOGIN_RECORDS: Arc<Mutex<Vec<LoginRecord>>> = Arc::new(Mutex::new(Vec::new()));
-    static ref CREDENTIAL_USAGE: Arc<RwLock<HashMap<String, CredentialUsage>>> = 
+    static ref CREDENTIAL_USAGE: Arc<RwLock<HashMap<String, CredentialUsage>>> =
         Arc::new(RwLock::new(HashMap::new()));
-    static ref PERFORMANCE_METRICS: Arc<Mutex<Vec<PerformanceMetrics>>> = 
+    static ref PERFORMANCE_METRICS: Arc<Mutex<Vec<PerformanceMetrics>>> =
         Arc::new(Mutex::new(Vec::new()));
-    static ref ALERT_TRIGGERED: Arc<Mutex<HashMap<String, i64>>> = 
+    static ref ALERT_TRIGGERED: Arc<Mutex<HashMap<String, i64>>> =
         Arc::new(Mutex::new(HashMap::new()));
 }
 
@@ -77,7 +77,12 @@ pub fn is_performance_monitoring_enabled() -> bool {
     Config::get_bool_option(keys::OPTION_ENABLE_PERFORMANCE_MONITORING)
 }
 
-pub fn record_login_attempt(peer_id: String, ip: String, success: bool, failure_reason: Option<String>) {
+pub fn record_login_attempt(
+    peer_id: String,
+    ip: String,
+    success: bool,
+    failure_reason: Option<String>,
+) {
     let mut records = LOGIN_RECORDS.lock().unwrap();
     let record = LoginRecord {
         peer_id: peer_id.clone(),
@@ -87,12 +92,12 @@ pub fn record_login_attempt(peer_id: String, ip: String, success: bool, failure_
         failure_reason,
     };
     records.push(record);
-    
+
     let len = records.len();
     if len > MAX_LOGIN_RECORDS {
         records.drain(0..len - MAX_LOGIN_RECORDS);
     }
-    
+
     if !success && is_login_alerts_enabled() {
         check_and_trigger_login_failure_alert(&peer_id);
     }
@@ -102,18 +107,18 @@ pub fn check_and_trigger_login_failure_alert(peer_id: &str) {
     let records = LOGIN_RECORDS.lock().unwrap();
     let now = get_time();
     let one_hour_ago = now - 3600 * 1000;
-    
+
     let recent_failures = records
         .iter()
         .filter(|r| r.peer_id == peer_id && !r.success && r.timestamp > one_hour_ago)
         .count();
-    
+
     let max_failures = get_max_login_failures() as usize;
-    
+
     if recent_failures >= max_failures {
         let mut triggered = ALERT_TRIGGERED.lock().unwrap();
         let last_triggered = triggered.get(peer_id).copied().unwrap_or(0);
-        
+
         if now - last_triggered > ALERT_COOLDOWN_MS {
             triggered.insert(peer_id.to_string(), now);
             log::warn!(
@@ -129,14 +134,19 @@ pub fn check_and_trigger_login_failure_alert(peer_id: &str) {
 fn send_alert_webhook(peer_id: &str, failure_count: usize) {
     let webhook_url = get_alert_webhook_url();
     if !webhook_url.is_empty() {
-        log::info!("Would send alert to webhook: {} for peer {} with {} failures", webhook_url, peer_id, failure_count);
+        log::info!(
+            "Would send alert to webhook: {} for peer {} with {} failures",
+            webhook_url,
+            peer_id,
+            failure_count
+        );
     }
 }
 
 pub fn update_credential_usage(peer_id: String) {
     let mut usage = CREDENTIAL_USAGE.write().unwrap();
     let now = get_time();
-    
+
     if let Some(record) = usage.get_mut(&peer_id) {
         record.last_used = now;
         record.usage_count = record.usage_count.saturating_add(1);
@@ -146,12 +156,12 @@ pub fn update_credential_usage(peer_id: String) {
                 .iter()
                 .min_by_key(|(_, v)| v.last_used)
                 .map(|(k, _)| k.clone());
-            
+
             if let Some(key) = oldest_key {
                 usage.remove(&key);
             }
         }
-        
+
         usage.insert(
             peer_id.clone(),
             CredentialUsage {
@@ -167,15 +177,15 @@ pub fn cleanup_expired_credentials() -> Vec<String> {
     if !is_credential_cleanup_enabled() {
         return Vec::new();
     }
-    
+
     let expiry_days = get_credential_expiry_days();
     let expiry_ms = expiry_days * 24 * 60 * 60 * 1000;
     let now = get_time();
     let cutoff = now - expiry_ms;
-    
+
     let mut usage = CREDENTIAL_USAGE.write().unwrap();
     let mut expired_peers = Vec::new();
-    
+
     usage.retain(|peer_id, record| {
         if record.last_used < cutoff {
             expired_peers.push(peer_id.clone());
@@ -185,7 +195,7 @@ pub fn cleanup_expired_credentials() -> Vec<String> {
             true
         }
     });
-    
+
     expired_peers
 }
 
@@ -200,16 +210,16 @@ pub fn start_performance_monitoring(connection_id: String) -> String {
         dropped_frames: 0,
         bytes_transferred: 0,
     };
-    
+
     let mut metrics_store = PERFORMANCE_METRICS.lock().unwrap();
-    
+
     let len = metrics_store.len();
     if len >= MAX_PERFORMANCE_RECORDS {
         metrics_store.drain(0..len - MAX_PERFORMANCE_RECORDS + 1);
     }
-    
+
     metrics_store.push(metrics);
-    
+
     connection_id
 }
 
@@ -224,11 +234,14 @@ pub fn update_performance_metrics(
     if !is_performance_monitoring_enabled() {
         return;
     }
-    
+
     let mut metrics_store = PERFORMANCE_METRICS.lock().unwrap();
-    if let Some(metrics) = metrics_store.iter_mut().find(|m| m.connection_id == connection_id) {
+    if let Some(metrics) = metrics_store
+        .iter_mut()
+        .find(|m| m.connection_id == connection_id)
+    {
         let new_total_frames = metrics.total_frames.saturating_add(frames);
-        
+
         if new_total_frames == 0 {
             metrics.avg_fps = fps.max(0.0);
             metrics.avg_latency_ms = latency_ms.max(0.0);
@@ -236,11 +249,14 @@ pub fn update_performance_metrics(
             let old_weight = metrics.total_frames as f64;
             let new_weight = 1.0;
             let total_weight = old_weight + new_weight;
-            
-            metrics.avg_fps = (metrics.avg_fps * old_weight + fps.max(0.0) * new_weight) / total_weight;
-            metrics.avg_latency_ms = (metrics.avg_latency_ms * old_weight + latency_ms.max(0.0) * new_weight) / total_weight;
+
+            metrics.avg_fps =
+                (metrics.avg_fps * old_weight + fps.max(0.0) * new_weight) / total_weight;
+            metrics.avg_latency_ms = (metrics.avg_latency_ms * old_weight
+                + latency_ms.max(0.0) * new_weight)
+                / total_weight;
         }
-        
+
         metrics.total_frames = new_total_frames;
         metrics.dropped_frames = metrics.dropped_frames.saturating_add(dropped);
         metrics.bytes_transferred = metrics.bytes_transferred.saturating_add(bytes);
@@ -250,8 +266,11 @@ pub fn update_performance_metrics(
 pub fn end_performance_monitoring(connection_id: &str) -> Option<PerformanceMetrics> {
     let mut metrics_store = PERFORMANCE_METRICS.lock().unwrap();
     let now = get_time();
-    
-    if let Some(metrics) = metrics_store.iter_mut().find(|m| m.connection_id == connection_id) {
+
+    if let Some(metrics) = metrics_store
+        .iter_mut()
+        .find(|m| m.connection_id == connection_id)
+    {
         metrics.end_time = Some(now);
         log::info!(
             "Connection {} ended. Avg FPS: {:.2}, Avg Latency: {:.2}ms, Frames: {}, Dropped: {}, Bytes: {}",
@@ -289,7 +308,7 @@ mod tests {
             true,
             None,
         );
-        
+
         let records = get_recent_login_records(10);
         assert!(!records.is_empty());
         assert_eq!(records[0].peer_id, "test-peer-1");
@@ -300,7 +319,7 @@ mod tests {
     fn test_credential_usage() {
         update_credential_usage("test-peer-2".to_string());
         update_credential_usage("test-peer-2".to_string());
-        
+
         let usage = CREDENTIAL_USAGE.read().unwrap();
         assert!(usage.contains_key("test-peer-2"));
         assert_eq!(usage.get("test-peer-2").unwrap().usage_count, 2);

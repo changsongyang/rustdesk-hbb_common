@@ -13,12 +13,7 @@ use anyhow::bail;
 use async_recursion::async_recursion;
 use bytes::{Bytes, BytesMut};
 use futures::{SinkExt, StreamExt};
-use std::{
-    io::Error,
-    net::SocketAddr,
-    sync::Arc,
-    time::Duration,
-};
+use std::{io::Error, net::SocketAddr, sync::Arc, time::Duration};
 use tokio::{net::TcpStream, time::timeout};
 use tokio_native_tls::native_tls::TlsConnector;
 use tokio_tungstenite::{
@@ -97,9 +92,7 @@ impl WsFramedStream {
     ) -> ResultType<WebSocketStream<MaybeTlsStream<TcpStream>>> {
         let ws_config = None;
         let disable_nagle = false;
-        let request = url
-            .into_client_request()
-            .map_err(Error::other)?;
+        let request = url.into_client_request().map_err(Error::other)?;
         let connector =
             Self::get_connector(&tls_type, danger_accept_invalid_cert.unwrap_or(false))?;
         match timeout(
@@ -272,9 +265,10 @@ impl WsFramedStream {
                 Ok(msg) => msg,
                 Err(e) => {
                     log::error!("{}", e);
-                    return Some(Err(Error::other(
-                        format!("WebSocket protocol error: {}", e),
-                    )));
+                    return Some(Err(Error::other(format!(
+                        "WebSocket protocol error: {}",
+                        e
+                    ))));
                 }
             };
 
@@ -306,7 +300,9 @@ impl WsFramedStream {
 
     #[inline]
     pub async fn next_timeout(&mut self, ms: u64) -> Option<Result<BytesMut, Error>> {
-        timeout(Duration::from_millis(ms), self.next()).await.unwrap_or_default()
+        timeout(Duration::from_millis(ms), self.next())
+            .await
+            .unwrap_or_default()
     }
 }
 

@@ -223,12 +223,16 @@ pub fn client_config_danger() -> ResultType<ClientConfig> {
     #[cfg(not(debug_assertions))]
     {
         log::error!("⚠️ ERROR: client_config_danger() called in production! Certificate verification cannot be disabled.");
-        Err(crate::anyhow::anyhow!("Insecure certificate verification is not allowed in production builds"))
+        Err(crate::anyhow::anyhow!(
+            "Insecure certificate verification is not allowed in production builds"
+        ))
     }
-    
+
     #[cfg(debug_assertions)]
     {
-        log::warn!("⚠️ WARNING: Using client_config_danger() - certificate verification is disabled!");
+        log::warn!(
+            "⚠️ WARNING: Using client_config_danger() - certificate verification is disabled!"
+        );
         let config = ClientConfig::builder()
             .dangerous()
             .with_custom_certificate_verifier(Arc::new(NoVerifier))

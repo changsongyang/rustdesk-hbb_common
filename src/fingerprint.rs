@@ -232,10 +232,10 @@ impl FingerprintingInfo {
                 let mut addr = default_net::get_mac().map(|m| m.addr).unwrap_or_default();
                 if addr.is_empty() {
                     addr = mac_address::get_mac_address()
-                    .ok()
-                    .and_then(|mac| mac)
-                    .map(|mac| mac.to_string())
-                    .unwrap_or_default();
+                        .ok()
+                        .and_then(|mac| mac)
+                        .map(|mac| mac.to_string())
+                        .unwrap_or_default();
                 }
                 addr = addr.replace(":", "");
                 format!("{:0<16}", addr)
