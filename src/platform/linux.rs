@@ -308,12 +308,12 @@ pub fn run_cmds_trim_newline(cmds: &str) -> ResultType<String> {
 
 fn run_loginctl(args: Option<Vec<&str>>) -> std::io::Result<std::process::Output> {
     if std::env::var("FLATPAK_ID").is_ok() {
-        let mut l_args = CMD_LOGINCTL.to_string();
+        let mut cmd_args = vec![String::from("--host"), CMD_LOGINCTL.to_string()];
         if let Some(a) = args.as_ref() {
-            l_args = format!("{} {}", l_args, a.join(" "));
+            cmd_args.extend(a.iter().map(|s| s.to_string()));
         }
         let res = std::process::Command::new("flatpak-spawn")
-            .args(vec![String::from("--host"), l_args])
+            .args(cmd_args)
             .output();
         if res.is_ok() {
             return res;

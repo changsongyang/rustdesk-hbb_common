@@ -58,9 +58,9 @@ pub use uuid;
 pub mod fingerprint;
 pub use flexi_logger;
 pub mod stream;
-pub mod websocket;
 #[cfg(feature = "webrtc")]
 pub mod webrtc;
+pub mod websocket;
 #[cfg(any(target_os = "android", target_os = "ios"))]
 pub use rustls_platform_verifier;
 pub use stream::Stream;
@@ -68,9 +68,9 @@ pub use whoami;
 pub mod tls;
 pub mod verifier;
 pub use async_recursion;
+pub use libloading;
 #[cfg(target_os = "linux")]
 pub use users;
-pub use libloading;
 #[cfg(target_os = "linux")]
 pub use x11;
 
@@ -85,30 +85,54 @@ pub async fn sleep(sec: f32) {
 macro_rules! allow_err {
     ($e:expr) => {
         if let Err(err) = $e {
-            log::debug!(
-                "{:?}, {}:{}:{}:{}",
-                err,
+            log::warn!(
+                "Error at {}:{}:{}: {:?}",
                 module_path!(),
                 file!(),
                 line!(),
-                column!()
+                err
             );
-        } else {
         }
     };
 
     ($e:expr, $($arg:tt)*) => {
         if let Err(err) = $e {
-            log::debug!(
-                "{:?}, {}, {}:{}:{}:{}",
-                err,
-                format_args!($($arg)*),
+            log::warn!(
+                "Error at {}:{}:{}: {:?} - {}",
                 module_path!(),
                 file!(),
                 line!(),
-                column!()
+                err,
+                format_args!($($arg)*)
             );
-        } else {
+        }
+    };
+}
+
+#[macro_export]
+macro_rules! log_err {
+    ($e:expr) => {
+        if let Err(err) = $e {
+            log::error!(
+                "Error at {}:{}:{}: {:?}",
+                module_path!(),
+                file!(),
+                line!(),
+                err
+            );
+        }
+    };
+
+    ($e:expr, $($arg:tt)*) => {
+        if let Err(err) = $e {
+            log::error!(
+                "Error at {}:{}:{}: {:?} - {}",
+                module_path!(),
+                file!(),
+                line!(),
+                err,
+                format_args!($($arg)*)
+            );
         }
     };
 }
@@ -122,7 +146,6 @@ pub type ResultType<F, E = anyhow::Error> = anyhow::Result<F, E>;
 
 /// Certain router and firewalls scan the packet and if they
 /// find an IP address belonging to their pool that they use to do the NAT mapping/translation, so here we mangle the ip address
-
 pub struct AddrMangle();
 
 #[inline]
@@ -189,7 +212,7 @@ impl AddrMangle {
         let mut padded = [0u8; 16];
         padded[..bytes.len()].copy_from_slice(bytes);
         let number = u128::from_le_bytes(padded);
-        let tm = (number >> 17) & (u32::max_value() as u128);
+        let tm = (number >> 17) & (u32::MAX as u128);
         let ip = (((number >> 49) - tm) as u32).to_le_bytes();
         let port = (number & 0xFFFFFF) - (tm & 0xFFFF);
         SocketAddr::V4(SocketAddrV4::new(
@@ -229,7 +252,7 @@ pub fn gen_version() {
     println!("cargo:rerun-if-changed=Cargo.toml");
     use std::io::prelude::*;
     let mut file = File::create("./src/version.rs").unwrap();
-    for line in read_lines("Cargo.toml").unwrap().flatten() {
+    for line in read_lines("Cargo.toml").unwrap().map_while(Result::ok) {
         let ab: Vec<&str> = line.split('=').map(|x| x.trim()).collect();
         if ab.len() == 2 && ab[0] == "version" {
             file.write_all(format!("pub const VERSION: &str = {};\n", ab[1]).as_bytes())
@@ -432,7 +455,10 @@ pub fn init_log(_is_async: bool, _name: &str) -> Option<flexi_logger::LoggerHand
         #[cfg(debug_assertions)]
         {
             use env_logger::*;
-            init_from_env(Env::default().filter_or(DEFAULT_FILTER_ENV, "info,reqwest=warn,rustls=warn,webrtc-sctp=warn,webrtc=warn"));
+            init_from_env(Env::default().filter_or(
+                DEFAULT_FILTER_ENV,
+                "info,reqwest=warn,rustls=warn,webrtc-sctp=warn,webrtc=warn",
+            ));
         }
         #[cfg(not(debug_assertions))]
         {
@@ -447,7 +473,9 @@ pub fn init_log(_is_async: bool, _name: &str) -> Option<flexi_logger::LoggerHand
                 path.push(_name);
             }
             use flexi_logger::*;
-            if let Ok(x) = Logger::try_with_env_or_str("debug,reqwest=warn,rustls=warn,webrtc-sctp=warn,webrtc=warn") {
+            if let Ok(x) = Logger::try_with_env_or_str(
+                "debug,reqwest=warn,rustls=warn,webrtc-sctp=warn,webrtc=warn",
+            ) {
                 logger_holder = x
                     .log_to_file(FileSpec::default().directory(path))
                     .write_mode(if _is_async {

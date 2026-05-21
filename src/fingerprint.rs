@@ -74,6 +74,7 @@ fn finalize_block(input: &[u8; 16], key: &[u8; 16]) -> [u8; 16] {
 
     add_round_key(&mut state, &round_keys[0]);
 
+    #[allow(clippy::needless_range_loop)]
     for round in 1..10 {
         sub_bytes(&mut state);
         shift_rows(&mut state);
@@ -156,6 +157,7 @@ fn get_system_entropy() -> [u8; 16] {
         .duration_since(std::time::UNIX_EPOCH)
         .unwrap_or_default()
         .as_nanos();
+    #[allow(clippy::needless_range_loop)]
     for i in 0..8 {
         entropy[i] = ((timestamp >> (32 - i)) & 0xFF) as u8;
     }
@@ -233,7 +235,7 @@ impl FingerprintingInfo {
                         .ok()
                         .and_then(|mac| mac)
                         .map(|mac| mac.to_string())
-                        .unwrap_or_else(|| "".to_string());
+                        .unwrap_or_default();
                 }
                 addr = addr.replace(":", "");
                 format!("{:0<16}", addr)
