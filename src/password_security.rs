@@ -594,7 +594,8 @@ mod test {
             &ENCRYPTION_KEY_SALT,
             pwhash::OPSLIMIT_INTERACTIVE,
             pwhash::MEMLIMIT_INTERACTIVE,
-        ).unwrap();
+        )
+        .unwrap();
         let key = secretbox::Key(key);
         let nonce = secretbox::Nonce([0; secretbox::NONCEBYTES]);
         let encrypted = secretbox::seal(data, &nonce, &key);
@@ -616,7 +617,8 @@ mod test {
             &ENCRYPTION_KEY_SALT,
             pwhash::OPSLIMIT_INTERACTIVE,
             pwhash::MEMLIMIT_INTERACTIVE,
-        ).unwrap();
+        )
+        .unwrap();
         let key = secretbox::Key(key);
         let nonce = secretbox::Nonce([0; secretbox::NONCEBYTES]);
 
@@ -657,7 +659,8 @@ mod test {
             &ENCRYPTION_KEY_SALT,
             pwhash::OPSLIMIT_INTERACTIVE,
             pwhash::MEMLIMIT_INTERACTIVE,
-        ).unwrap();
+        )
+        .unwrap();
         let key = secretbox::Key(key);
         let nonce = secretbox::Nonce([0; secretbox::NONCEBYTES]);
         let encrypted = secretbox::seal(data.as_bytes(), &nonce, &key);
@@ -686,7 +689,8 @@ mod test {
             &ENCRYPTION_KEY_SALT,
             pwhash::OPSLIMIT_INTERACTIVE,
             pwhash::MEMLIMIT_INTERACTIVE,
-        ).unwrap();
+        )
+        .unwrap();
         let key = secretbox::Key(key);
         let nonce = secretbox::Nonce([0; secretbox::NONCEBYTES]);
         let encrypted = secretbox::seal(data, &nonce, &key);
@@ -775,7 +779,8 @@ mod test {
             &ENCRYPTION_KEY_SALT,
             pwhash::OPSLIMIT_INTERACTIVE,
             pwhash::MEMLIMIT_INTERACTIVE,
-        ).unwrap();
+        )
+        .unwrap();
         let pk_key = secretbox::Key(pk_key);
         let ciphertext = secretbox::seal(data, &nonce, &pk_key);
 
