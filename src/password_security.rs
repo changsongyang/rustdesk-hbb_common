@@ -285,14 +285,11 @@ fn decrypt(v: &[u8]) -> Result<Vec<u8>, CryptError> {
 pub fn symmetric_crypt(data: &[u8], encrypt: bool) -> Result<Vec<u8>, CryptError> {
     use sodiumoxide::crypto::pwhash;
     use sodiumoxide::crypto::secretbox;
-    use std::convert::TryInto;
 
     if data.is_empty() {
         return Err(CryptError::EmptyData);
     }
 
-    // 获取设备 UUID 作为密钥派生的输入
-    let uuid = crate::get_uuid();
     // 获取设备 UUID 作为密钥派生的输入
     let uuid = crate::get_uuid();
 
