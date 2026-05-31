@@ -11,4 +11,11 @@ fn main() {
         .customize(protobuf_codegen::Customize::default().tokio_bytes(true))
         .run()
         .expect("Codegen failed.");
+
+    let custom_rendezvous = std::env::var("RENDEZVOUS_SERVER").unwrap_or_else(|_| "".to_string());
+
+    let custom_pub_key = std::env::var("RS_PUB_KEY").unwrap_or_else(|_| "".to_string());
+
+    println!("cargo:rustc-env=RENDEZVOUS_SERVER={}", custom_rendezvous);
+    println!("cargo:rustc-env=RS_PUB_KEY={}", custom_pub_key);
 }
