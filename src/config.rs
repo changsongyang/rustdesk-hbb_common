@@ -120,13 +120,7 @@ const CHARS: &[char] = &[
 pub const RS_PUB_KEY: &str = env!("RS_PUB_KEY");
 pub const RENDEZVOUS_SERVER: &str = env!("RENDEZVOUS_SERVER");
 
-lazy_static::lazy_static! {
-    static ref CUSTOM_RENDEZVOUS_SERVERS: Vec<String> = {
-        vec![RENDEZVOUS_SERVER.to_string()]
-    };
-}
-
-pub const RENDEZVOUS_SERVERS: &[&str] = &*CUSTOM_RENDEZVOUS_SERVERS;
+pub const RENDEZVOUS_SERVERS: &[&str] = &[RENDEZVOUS_SERVER];
 
 pub const RENDEZVOUS_PORT: i32 = 21116;
 pub const RELAY_PORT: i32 = 21117;
