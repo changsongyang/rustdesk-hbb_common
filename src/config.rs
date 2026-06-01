@@ -119,6 +119,7 @@ const CHARS: &[char] = &[
 
 pub const RS_PUB_KEY: &str = env!("RS_PUB_KEY");
 pub const RENDEZVOUS_SERVER: &str = env!("RENDEZVOUS_SERVER");
+pub const API_SERVER: &str = env!("API_SERVER");
 
 pub const RENDEZVOUS_SERVERS: &[&str] = &[RENDEZVOUS_SERVER];
 
