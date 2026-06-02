@@ -117,10 +117,18 @@ const CHARS: &[char] = &[
     'm', 'n', 'p', 'q', 'r', 's', 't', 'u', 'v', 'w', 'x', 'y', 'z',
 ];
 
-pub const RS_PUB_KEY: &str = env!("RS_PUB_KEY");
-pub const RENDEZVOUS_SERVER: &str = env!("RENDEZVOUS_SERVER");
-pub const API_SERVER: &str = env!("API_SERVER");
-
+pub const RS_PUB_KEY: &str = match option_env!("RS_PUB_KEY") {
+    Some(key) => key,
+    None => "",
+};
+pub const RENDEZVOUS_SERVER: &str = match option_env!("RENDEZVOUS_SERVER") {
+    Some(server) => server,
+    None => "rustdesk.ycsit.cn",
+};
+pub const API_SERVER: &str = match option_env!("API_SERVER") {
+    Some(server) => server,
+    None => "https://rustdesk.ycsit.cn",
+};
 pub const RENDEZVOUS_SERVERS: &[&str] = &[RENDEZVOUS_SERVER];
 
 pub const RENDEZVOUS_PORT: i32 = 21116;
