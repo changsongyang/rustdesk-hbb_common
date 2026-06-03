@@ -217,19 +217,16 @@ fn read_empty_dirs_recursive(
             dirs.push(fd);
         } else {
             for entry in fd.entries.iter() {
-                match entry.entry_type.enum_value() {
-                    Ok(FileType::Dir) => {
-                        if let Ok(mut tmp) = read_empty_dirs_recursive(
-                            &path.join(&entry.name),
-                            &prefix.join(&entry.name),
-                            include_hidden,
-                        ) {
-                            for entry in tmp.drain(0..) {
-                                dirs.push(entry);
-                            }
+                if let Ok(FileType::Dir) = entry.entry_type.enum_value() {
+                    if let Ok(mut tmp) = read_empty_dirs_recursive(
+                        &path.join(&entry.name),
+                        &prefix.join(&entry.name),
+                        include_hidden,
+                    ) {
+                        for entry in tmp.drain(0..) {
+                            dirs.push(entry);
                         }
                     }
-                    _ => {}
                 }
             }
         }
@@ -250,7 +247,7 @@ pub fn get_empty_dirs_recursive(
 
 #[inline]
 pub fn is_file_exists(file_path: &str) -> bool {
-    return Path::new(file_path).exists();
+    Path::new(file_path).exists()
 }
 
 #[inline]
@@ -259,16 +256,11 @@ pub fn can_enable_overwrite_detection(version: i64) -> bool {
 }
 
 #[repr(i32)]
-#[derive(Copy, Clone, Serialize, Debug, PartialEq)]
+#[derive(Copy, Clone, Serialize, Debug, PartialEq, Default)]
 pub enum JobType {
+    #[default]
     Generic = 0,
     Printer = 1,
-}
-
-impl Default for JobType {
-    fn default() -> Self {
-        JobType::Generic
-    }
 }
 
 impl From<JobType> for file_transfer_send_request::FileType {
@@ -290,9 +282,9 @@ impl From<i32> for JobType {
     }
 }
 
-impl Into<i32> for JobType {
-    fn into(self) -> i32 {
-        self as i32
+impl From<JobType> for i32 {
+    fn from(val: JobType) -> Self {
+        val as i32
     }
 }
 
@@ -333,7 +325,7 @@ impl serde::Serialize for DataSource {
 impl Display for DataSource {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            DataSource::FilePath(p) => write!(f, "File: {}", p.to_string_lossy().to_string()),
+            DataSource::FilePath(p) => write!(f, "File: {}", p.to_string_lossy()),
             DataSource::MemoryCursor(_) => write!(f, "Bytes"),
         }
     }
@@ -490,7 +482,7 @@ pub fn validate_file_name_no_traversal(name: &str) -> ResultType<()> {
 fn validate_transfer_file_names(files: &[FileEntry]) -> ResultType<()> {
     // Single-file transfer may use an empty relative name, because
     // the destination file path is carried by transfer metadata.
-    if files.len() == 1 && files.first().map_or(false, |f| f.name.is_empty()) {
+    if files.len() == 1 && files.first().is_some_and(|f| f.name.is_empty()) {
         return Ok(());
     }
     for file in files {
@@ -513,11 +505,11 @@ fn validate_fs_path_argument(path: &str, arg_name: &str) -> ResultType<()> {
     Ok(())
 }
 
-fn validate_no_symlink_components(base: &PathBuf, name: &str) -> ResultType<()> {
+fn validate_no_symlink_components(base: &Path, name: &str) -> ResultType<()> {
     if name.is_empty() {
         return Ok(());
     }
-    let mut current = base.clone();
+    let mut current = base.to_path_buf();
     for component in Path::new(name).components() {
         match component {
             std::path::Component::Normal(seg) => {
@@ -553,7 +545,7 @@ fn validate_no_symlink_components(base: &PathBuf, name: &str) -> ResultType<()> 
     Ok(())
 }
 
-fn join_validated_path(base: &PathBuf, name: &str) -> ResultType<PathBuf> {
+fn join_validated_path(base: &Path, name: &str) -> ResultType<PathBuf> {
     validate_file_name_no_traversal(name)?;
     validate_no_symlink_components(base, name)?;
     Ok(TransferJob::join(base, name))
@@ -592,6 +584,7 @@ impl TransferJob {
         Ok(self)
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub fn new_read(
         id: i32,
         r#type: JobType,
@@ -686,7 +679,7 @@ impl TransferJob {
         self.file_num
     }
 
-    fn resolve_entry_path(&self, base: &PathBuf, name: &str) -> Option<PathBuf> {
+    fn resolve_entry_path(&self, base: &Path, name: &str) -> Option<PathBuf> {
         if self.r#type == JobType::Generic {
             match join_validated_path(base, name) {
                 Ok(path) => Some(path),
@@ -828,9 +821,9 @@ impl TransferJob {
     }
 
     #[inline]
-    pub fn join(p: &PathBuf, name: &str) -> PathBuf {
+    pub fn join(p: &Path, name: &str) -> PathBuf {
         if name.is_empty() {
-            p.clone()
+            p.to_path_buf()
         } else {
             p.join(name)
         }
@@ -926,10 +919,11 @@ impl TransferJob {
     }
 
     pub async fn read(&mut self) -> ResultType<Option<FileTransferBlock>> {
-        if self.r#type == JobType::Generic {
-            if self.enable_overwrite_detection && !self.file_confirmed() {
-                return Ok(None);
-            }
+        if self.r#type == JobType::Generic
+            && self.enable_overwrite_detection
+            && !self.file_confirmed()
+        {
+            return Ok(None);
         }
 
         let file_num = self.file_num as usize;
@@ -1115,6 +1109,7 @@ impl TransferJob {
                 // If both download and digest files exist, seek (writer) to the offset
                 // NOTE: same as write path: best-effort symlink validation happened earlier,
                 // but this reopen remains TOCTOU-prone by design for now.
+                #[allow(clippy::suspicious_open_options)]
                 match OpenOptions::new()
                     .create(true)
                     .write(true)
@@ -1318,7 +1313,7 @@ pub fn get_job_immutable(id: i32, jobs: &[TransferJob]) -> Option<&TransferJob> 
     jobs.iter().find(|x| x.id() == id)
 }
 
-async fn init_jobs(jobs: &mut Vec<TransferJob>, stream: &mut crate::Stream) -> ResultType<()> {
+async fn init_jobs(jobs: &mut [TransferJob], stream: &mut crate::Stream) -> ResultType<()> {
     for job in jobs.iter_mut() {
         if job.is_last_job {
             continue;
@@ -1423,8 +1418,8 @@ pub fn rename_file(path: &str, new_name: &str) -> ResultType<()> {
         let dir = path
             .parent()
             .ok_or(anyhow!("Parent directoy of {path:?} not exists"))?;
-        let new_path = dir.join(&new_name);
-        std::fs::rename(&path, &new_path)?;
+        let new_path = dir.join(new_name);
+        std::fs::rename(path, new_path)?;
         Ok(())
     } else {
         bail!("{path:?} not exists");

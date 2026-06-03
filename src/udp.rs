@@ -65,7 +65,7 @@ impl FramedSocket {
         )))
     }
 
-    pub async fn new_proxy<'a, 't, P: ToProxyAddrs, T: ToSocketAddrs>(
+    pub async fn new_proxy<'a, P: ToProxyAddrs, T: ToSocketAddrs>(
         proxy: P,
         local: T,
         username: &'a str,
@@ -151,13 +151,10 @@ impl FramedSocket {
         &mut self,
         ms: u64,
     ) -> Option<ResultType<(BytesMut, TargetAddr<'static>)>> {
-        if let Ok(res) =
-            tokio::time::timeout(std::time::Duration::from_millis(ms), self.next()).await
-        {
-            res
-        } else {
-            None
-        }
+        tokio::time::timeout(std::time::Duration::from_millis(ms), self.next())
+            .await
+            .ok()
+            .flatten()
     }
 
     pub fn local_addr(&self) -> Option<SocketAddr> {
