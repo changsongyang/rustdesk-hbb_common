@@ -117,11 +117,28 @@ const CHARS: &[char] = &[
     'm', 'n', 'p', 'q', 'r', 's', 't', 'u', 'v', 'w', 'x', 'y', 'z',
 ];
 
-pub const RS_PUB_KEY: &str = env!("RS_PUB_KEY");
-pub const RENDEZVOUS_SERVER: &str = env!("RENDEZVOUS_SERVER");
-pub const API_SERVER: &str = env!("API_SERVER");
-
-pub const RENDEZVOUS_SERVERS: &[&str] = &[RENDEZVOUS_SERVER];
+lazy_static::lazy_static! {
+    /// RS_PUB_KEY for public key verification.
+    /// WARNING: Empty key may cause security issues in production.
+    /// Set RS_PUB_KEY environment variable during build for production use.
+    pub static ref RS_PUB_KEY: &'static str = {
+        match option_env!("RS_PUB_KEY") {
+            Some(key) if !key.is_empty() => key,
+            _ => {
+                // Log warning at first access (deferred until first use)
+                log::warn!("RS_PUB_KEY environment variable is not set or empty. Using empty key.");
+                ""
+            }
+        }
+    };
+    pub static ref RENDEZVOUS_SERVER: &'static str = option_env!("RENDEZVOUS_SERVER").unwrap_or("rustdesk.ycsit.cn");
+    pub static ref API_SERVER: &'static str = option_env!("API_SERVER").unwrap_or("https://rustdesk.ycsit.cn");
+    pub static ref RENDEZVOUS_SERVERS: Vec<&'static str> = {
+        // Ensure RENDEZVOUS_SERVER is initialized first by accessing it
+        let server = &*RENDEZVOUS_SERVER;
+        vec![server]
+    };
+}
 
 pub const RENDEZVOUS_PORT: i32 = 21116;
 pub const RELAY_PORT: i32 = 21117;

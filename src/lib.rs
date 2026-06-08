@@ -498,7 +498,8 @@ pub const VER_TYPE_RUSTDESK_CLIENT: &str = "rustdesk-client";
 pub const VER_TYPE_RUSTDESK_SERVER: &str = "rustdesk-server";
 
 pub fn version_check_request(typ: String) -> (VersionCheckRequest, String) {
-    const URL: &str = concat!(env!("API_SERVER"), "/version/latest");
+    use config::API_SERVER;
+    let url = format!("{}/version/latest", *API_SERVER);
 
     use sysinfo::System;
     let system = System::new();
@@ -515,7 +516,7 @@ pub fn version_check_request(typ: String) -> (VersionCheckRequest, String) {
             device_id,
             typ,
         },
-        URL.to_string(),
+        url,
     )
 }
 
