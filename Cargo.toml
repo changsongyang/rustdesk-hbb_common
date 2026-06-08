@@ -53,6 +53,8 @@ machine-uid = { git = "https://github.com/rustdesk-org/machine-uid" }
 tokio-rustls = { version = "0.26", features = ["logging", "tls12", "ring"], default-features = false }
 rustls-platform-verifier = { git = "https://github.com/rustls/rustls-platform-verifier", rev = "996b1c903491641b17b3c9afb65d1352f6fc6b76" }
 rustls-pki-types = "1.4"
+rustls = { version = "0.23", features = ["ring"] }
+ring = "0.17"
 [target.'cfg(any(target_os = "macos", target_os = "windows"))'.dependencies]
 tokio-native-tls ="0.3"
 

@@ -45,6 +45,8 @@ pub enum ProxyError {
     HttpCode200(u16),
     #[error("The proxy address resolution failed: {0}")]
     AddressResolutionFailed(String),
+    #[error("TLS error: {0}")]
+    TlsError(String),
     #[cfg(any(target_os = "windows", target_os = "macos"))]
     #[error("The native tls error: {0}")]
     NativeTlsError(#[from] tokio_native_tls::native_tls::Error),
@@ -458,19 +460,24 @@ impl Proxy {
         use std::convert::TryFrom;
         // Use new API from rustls-platform-verifier 0.7.0
         // Old: rustls_platform_verifier::tls_config() -> ClientConfig
-        // New: Builder pattern with Verifier::new()
-        let verifier = rustls::ClientConfig::builder()
+        // New: Builder pattern with Verifier::new() that requires CryptoProvider
+        let crypto_provider = std::sync::Arc::new(rustls::crypto::ring::default_provider());
+        let verifier = rustls_platform_verifier::Verifier::new(crypto_provider.clone())
+            .map_err(|e| ProxyError::TlsError(e.to_string()))?;
+        
+        let config = rustls::ClientConfig::builder_with_provider(crypto_provider)
             .with_safe_defaults()
-            .with_custom_certificate_verifier(std::sync::Arc::new(
-                rustls_platform_verifier::Verifier::new(),
-            ));
+            .map_err(|e| ProxyError::TlsError(e.to_string()))?
+            .with_custom_certificate_verifier(std::sync::Arc::new(verifier))
+            .with_no_client_auth();
+        
         let url_domain = self.intercept.get_domain()?;
 
         let domain = rustls_pki_types::ServerName::try_from(url_domain.as_str())
             .map_err(|e| ProxyError::AddressResolutionFailed(e.to_string()))?
             .to_owned();
 
-        let tls_connector = TlsConnector::from(std::sync::Arc::new(verifier));
+        let tls_connector = TlsConnector::from(std::sync::Arc::new(config));
         let stream = tls_connector.connect(domain, io).await?;
         self.http_connect(stream, target).await
     }
