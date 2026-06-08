@@ -58,7 +58,7 @@ tokio-rustls = { version = "0.26", features = [
     "tls12",
     "ring",
 ], default-features = false }
-# tokio-native-tls = "0.3"  # Removed: use rustls instead for musl compatibility
+tokio-native-tls = { version = "0.3", optional = true }  # Optional: only used when native-tls feature is enabled
 tokio-tungstenite = { version = "0.26", features = ["rustls-tls-native-roots", "rustls-tls-webpki-roots"], default-features = false }
 tungstenite = { version = "0.26", features = ["rustls-tls-native-roots", "rustls-tls-webpki-roots"], default-features = false }
 rustls-platform-verifier = { git = "https://github.com/rustls/rustls-platform-verifier", rev = "996b1c903491641b17b3c9afb65d1352f6fc6b76" }
