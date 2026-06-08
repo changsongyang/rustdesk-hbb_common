@@ -456,7 +456,14 @@ impl Proxy {
         T: IntoTargetAddr<'a>,
     {
         use std::convert::TryFrom;
-        let verifier = rustls_platform_verifier::tls_config();
+        // Use new API from rustls-platform-verifier 0.7.0
+        // Old: rustls_platform_verifier::tls_config() -> ClientConfig
+        // New: Builder pattern with Verifier::new()
+        let verifier = rustls::ClientConfig::builder()
+            .with_safe_defaults()
+            .with_custom_certificate_verifier(std::sync::Arc::new(
+                rustls_platform_verifier::Verifier::new(),
+            ));
         let url_domain = self.intercept.get_domain()?;
 
         let domain = rustls_pki_types::ServerName::try_from(url_domain.as_str())
