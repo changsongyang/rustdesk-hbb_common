@@ -9,11 +9,13 @@ use base64::{engine::general_purpose, Engine};
 use httparse::{Error as HttpParseError, Response, EMPTY_HEADER};
 use thiserror::Error as ThisError;
 use tokio::io::{AsyncRead, AsyncWrite, AsyncWriteExt, BufStream};
-use tokio_native_tls::{native_tls, TlsConnector, TlsStream};
 use tokio_rustls::{client::TlsStream as RustlsTlsStream, TlsConnector as RustlsTlsConnector};
 use tokio_socks::{tcp::Socks5Stream, IntoTargetAddr, TargetAddr};
 use tokio_util::codec::Framed;
 use url::Url;
+
+#[cfg(feature = "native-tls")]
+use tokio_native_tls::{native_tls, TlsConnector, TlsStream};
 
 use crate::{
     bytes_codec::BytesCodec,
@@ -45,6 +47,7 @@ pub enum ProxyError {
     HttpCode200(u16),
     #[error("The proxy address resolution failed: {0}")]
     AddressResolutionFailed(String),
+    #[cfg(feature = "native-tls")]
     #[error("The native tls error: {0}")]
     NativeTlsError(#[from] tokio_native_tls::native_tls::Error),
 }
@@ -425,6 +428,7 @@ impl Proxy {
                         )
                         .await?
                     }
+                    #[cfg(feature = "native-tls")]
                     TlsType::NativeTls => {
                         self.https_connect_nativetls_wrap_danger(
                             &url,
@@ -477,6 +481,7 @@ impl Proxy {
         };
     }
 
+    #[cfg(feature = "native-tls")]
     async fn https_connect_nativetls_wrap_danger<'a>(
         &self,
         url: &str,
@@ -503,6 +508,7 @@ impl Proxy {
         Ok(DynTcpStream(Box::new(s)))
     }
 
+    #[cfg(feature = "native-tls")]
     pub async fn https_connect_nativetls<'a, Input>(
         &self,
         io: Input,

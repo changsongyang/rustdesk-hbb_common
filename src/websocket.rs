@@ -20,11 +20,13 @@ use std::{
     time::Duration,
 };
 use tokio::{net::TcpStream, time::timeout};
-use tokio_native_tls::native_tls::TlsConnector;
 use tokio_tungstenite::{
     connect_async_tls_with_config, tungstenite::protocol::Message as WsMessage, Connector,
     MaybeTlsStream, WebSocketStream,
 };
+
+#[cfg(feature = "native-tls")]
+use tokio_native_tls::native_tls::TlsConnector;
 use tungstenite::client::IntoClientRequest;
 use tungstenite::protocol::Role;
 
@@ -43,6 +45,7 @@ impl WsFramedStream {
     ) -> ResultType<Option<Connector>> {
         match tls_type {
             TlsType::Plain => Ok(Some(Connector::Plain)),
+            #[cfg(feature = "native-tls")]
             TlsType::NativeTls => {
                 let connector = TlsConnector::builder()
                     .danger_accept_invalid_certs(danger_accept_invalid_certs)
@@ -135,16 +138,24 @@ impl WsFramedStream {
                         url,
                         e
                     );
-                    Self::try_connect(
-                        url,
-                        ms_timeout,
-                        TlsType::NativeTls,
-                        is_tls_type_cached,
-                        original_danger_accept_invalid_certs,
-                        original_danger_accept_invalid_certs,
-                    )
-                    .await
+                    #[cfg(feature = "native-tls")]
+                    {
+                        Self::try_connect(
+                            url,
+                            ms_timeout,
+                            TlsType::NativeTls,
+                            is_tls_type_cached,
+                            original_danger_accept_invalid_certs,
+                            original_danger_accept_invalid_certs,
+                        )
+                        .await
+                    }
+                    #[cfg(not(feature = "native-tls"))]
+                    {
+                        bail!("WebSocket connection with rustls-tls failed: {}", e)
+                    }
                 }
+                #[cfg(feature = "native-tls")]
                 (TlsType::NativeTls, _, None) => {
                     log::warn!(
                             "WebSocket connection with native-tls failed, try accept invalid certs: {}, {:?}",
@@ -191,6 +202,7 @@ impl WsFramedStream {
         let stream = Self::connect(url.as_ref(), ms_timeout).await?;
         let addr = match stream.get_ref() {
             MaybeTlsStream::Plain(tcp) => tcp.peer_addr()?,
+            #[cfg(feature = "native-tls")]
             MaybeTlsStream::NativeTls(tls) => tls.get_ref().get_ref().get_ref().peer_addr()?,
             MaybeTlsStream::Rustls(tls) => tls.get_ref().0.peer_addr()?,
             _ => return Err(Error::new(ErrorKind::Other, "Unsupported stream type").into()),
