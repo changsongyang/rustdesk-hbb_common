@@ -60,9 +60,11 @@ tokio-rustls = { version = "0.26", features = [
 tokio-native-tls = "0.3"
 tokio-tungstenite = { version = "0.26", features = ["native-tls", "rustls-tls-native-roots", "rustls-tls-webpki-roots"] }
 tungstenite = { version = "0.26", features = ["native-tls", "rustls-tls-native-roots", "rustls-tls-webpki-roots"] }
-rustls-platform-verifier = "0.6"
+rustls-platform-verifier = { git = "https://github.com/rustls/rustdesk-platform-verifier", rev = "996b1c903491641b17b3c9afb65d1352f6fc6b76" }
 rustls-pki-types = "1.11"
 rustls-native-certs = "0.8"
+rustls = { version = "0.23", features = ["ring"] }
+ring = "0.17"
 webpki-roots = "1.0.4"
 async-recursion = "1.1"
 webrtc = { version = "0.14.0", optional = true }
